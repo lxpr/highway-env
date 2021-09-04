@@ -29,7 +29,7 @@ class ControlledVehicle(Vehicle):
     KP_HEADING = 1 / TAU_HEADING
     KP_LATERAL = 1 / TAU_LATERAL  # [1/s]
     MAX_STEERING_ANGLE = np.pi / 3  # [rad]
-    DELTA_SPEED = 5  # [m/s]
+    DELTA_SPEED = 1  # [m/s]
 
     def __init__(self,
                  road: Road,
@@ -204,9 +204,9 @@ class MDPVehicle(ControlledVehicle):
 
     """A controlled vehicle with a specified discrete range of allowed target speeds."""
 
-    SPEED_COUNT: int = 3  # []
-    SPEED_MIN: float = 20  # [m/s]
-    SPEED_MAX: float = 30  # [m/s]
+    SPEED_COUNT: int = 5  # []
+    SPEED_MIN: float = 1  # [m/s]
+    SPEED_MAX: float = 5  # [m/s]
 
     def __init__(self,
                  road: Road,
@@ -229,6 +229,7 @@ class MDPVehicle(ControlledVehicle):
 
         :param action: a high-level action
         """
+        # print('self.speed:', self.speed)
         if action == "FASTER":
             self.speed_index = self.speed_to_index(self.speed) + 1
         elif action == "SLOWER":
