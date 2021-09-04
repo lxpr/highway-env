@@ -286,6 +286,18 @@ class Road(object):
         if count:
             vehicles = vehicles[:count]
         return vehicles
+    
+    def close_vehicles_to_unsorted(self, vehicle: 'kinematics.Vehicle', distance: float, count: int = None,
+                          see_behind: bool = True) -> object:
+        vehicles = [v for v in self.vehicles
+                    if np.linalg.norm(v.position - vehicle.position) < distance
+                    and v is not vehicle
+                    and (see_behind or -2 * vehicle.LENGTH < vehicle.lane_distance_to(v))]
+
+        # vehicles = sorted(vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
+        if count:
+            vehicles = vehicles[:count]
+        return vehicles
 
     def act(self) -> None:
         """Decide the actions of each entity on the road."""
