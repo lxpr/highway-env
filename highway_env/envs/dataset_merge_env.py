@@ -1,4 +1,8 @@
 import numpy as np
+import math
+
+from highway_env.envs.reader import Reader
+
 from gym.envs.registration import register
 
 from highway_env import utils
@@ -162,18 +166,76 @@ class DatasetMergeEnv(AbstractEnv):
         '''ego_vehicle = self.action_type.vehicle_class(road,
                                                      road.network.get_lane(("j", "k", 0)).position(30, 0),
                                                      speed=3)'''
+        # ego_vehicle = self.action_type.vehicle_class(road,
+        #                                              road.network.get_lane(("b", "c", 1)).position(1, 0), heading = 2,
+        #                                              speed=5)
+        # ego_vehicle.target_speed = 3
+        # road.vehicles.append(ego_vehicle)
+        # print(ego_vehicle.position)
+
+        # other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
+        other_vehicles_type = utils.class_from_path("highway_env.vehicle.kinematics.DirectSetVehicle")
+        position_list = [[1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+                         [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+
+
+
+                         ]
+        reader = Reader(scene_type='paths')
+        _, _, paths = reader.scene()
+        ped_id = paths[0][0].pedestrian
+        xy = Reader.paths_to_xy(paths)
+        # print(paths)
+        # print(xy)
         ego_vehicle = self.action_type.vehicle_class(road,
-                                                     road.network.get_lane(("b", "c", 1)).position(1, 0), heading = 2,
+                                                     xy[0][0], heading = 2,
                                                      speed=5)
         ego_vehicle.target_speed = 3
         road.vehicles.append(ego_vehicle)
+        for i in range(1, len(xy)):
+            position_list = xy[i]
+            if not math.isnan(position_list[0][0]):
+                starting_point = position_list[0]
+            else:
+                starting_point = [10000, 10000]
+            road.vehicles.append(
+                other_vehicles_type(road, starting_point, position_list))
 
-        other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
-        road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 0)).position(5, 0), speed=5))
+        # road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 0)).position(5, 0), position_list, speed=5))
 
-        merging_v = other_vehicles_type(road, road.network.get_lane(("i", "j", 0)).position(20, 0), speed=5)
+        '''merging_v = other_vehicles_type(road, road.network.get_lane(("i", "j", 0)).position(20, 0), speed=5)
         merging_v.target_speed = 3
-        road.vehicles.append(merging_v)
+        road.vehicles.append(merging_v)'''
 
         self.vehicle = ego_vehicle
 
