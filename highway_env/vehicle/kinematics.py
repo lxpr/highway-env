@@ -308,12 +308,15 @@ class DirectSetVehicle(RoadObject):
 
         :param dt: timestep of integration of the model [s]
         """
+        old_position = self.position
         if not math.isnan(self.position_list[self.i][0]):
             # print(self.position_list[self.i])
             self.position = self.position_list[self.i]
         else:
             self.position = [10000, 10000]
         # print(self.position)
+        if self.position[0] != old_position[0]:
+            self.heading =  np.pi + (self.position[1] - old_position[1]) / (self.position[0] - old_position[0])
         self.i += 1
         if self.i >= 10:
             self.i = 0
@@ -386,9 +389,7 @@ class DirectSetVehicle(RoadObject):
             'vy': self.velocity[1],
             'heading': self.heading,
             'cos_h': self.direction[0],
-            'sin_h': self.direction[1],
-            'cos_d': self.destination_direction[0],
-            'sin_d': self.destination_direction[1]
+            'sin_h': self.direction[1]
         }
         if not observe_intentions:
             d["cos_d"] = d["sin_d"] = 0

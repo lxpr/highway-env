@@ -1,6 +1,7 @@
 from typing import Tuple, Union
 
 import numpy as np
+import math
 
 from highway_env.road.road import Road, Route, LaneIndex
 from highway_env.types import Vector
@@ -27,7 +28,7 @@ class IDMVehicle(ControlledVehicle):
     COMFORT_ACC_MIN = -5.0  # [m/s2]
     """Desired maximum deceleration."""
 
-    DISTANCE_WANTED = 5.0 + ControlledVehicle.LENGTH  # [m]
+    DISTANCE_WANTED = 4 + ControlledVehicle.LENGTH  # [m]
     """Desired jam distance to the front vehicle."""
 
     TIME_WANTED = 1.5  # [s]
@@ -55,6 +56,8 @@ class IDMVehicle(ControlledVehicle):
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route)
         self.enable_lane_change = enable_lane_change
         self.timer = timer or (np.sum(self.position)*np.pi) % self.LANE_CHANGE_DELAY
+        self.desired_position = None
+        self.dt = None
 
     def randomize_behavior(self):
         pass
@@ -74,6 +77,13 @@ class IDMVehicle(ControlledVehicle):
                 route=vehicle.route, timer=getattr(vehicle, 'timer', None))
         return v
 
+    def directly_set_position(self, desired_position):
+        """
+        Directly set the position
+        :param position: The desired position
+        """
+        self.desired_position = desired_position
+
     def act(self, action: Union[dict, str] = None):
         """
         Execute an action.
@@ -85,29 +95,67 @@ class IDMVehicle(ControlledVehicle):
         """
         if self.crashed:
             return
-        action = {}
-        # Lateral: MOBIL
-        self.follow_road()
-        if self.enable_lane_change:
-            self.change_lane_policy()
-        action['steering'] = self.steering_control(self.target_lane_index)
-        action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
+        # action = {}
+        # # Lateral: MOBIL
+        # self.follow_road()
+        # if self.enable_lane_change:
+        #     self.change_lane_policy()
+        # action['steering'] = self.steering_control(self.target_lane_index)
+        # action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
+        # 
+        # # Longitudinal: IDM
+        # front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.lane_index)
+        # action['acceleration'] = self.acceleration(ego_vehicle=self,
+        #                                            front_vehicle=front_vehicle,
+        #                                            rear_vehicle=rear_vehicle)
+        # # When changing lane, check both current and target lanes
+        # if self.lane_index != self.target_lane_index:
+        #     front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.target_lane_index)
+        #     target_idm_acceleration = self.acceleration(ego_vehicle=self,
+        #                                                 front_vehicle=front_vehicle,
+        #                                                 rear_vehicle=rear_vehicle)
+        #     action['acceleration'] = min(action['acceleration'], target_idm_acceleration)
+        # # action['acceleration'] = self.recover_from_stop(action['acceleration'])
+        # action['acceleration'] = np.clip(action['acceleration'], -self.ACC_MAX, self.ACC_MAX)
+        # # print(action)
+        # Vehicle.act(self, action)  # Skip ControlledVehicle.act(), or the command will be overriden.
+        
+        if self.desired_position is not None:
+            pass
+            # old_position = self.position
+            # if not math.isnan(self.desired_position[0]):
+            #     # print(self.position_list[self.i])
+            #     self.position = self.desired_position
+            # self.speed = np.linalg.norm(self.position - old_position) / self.dt
+            # # print(self.position)
+            # # if self.position[0] != old_position[0]:
+            # #     self.heading = np.pi + (self.position[1] - old_position[1]) / (self.position[0] - old_position[0])
+            # self.desired_position = None
+        else:
+            action = {}
+            # Lateral: MOBIL
+            self.follow_road()
+            if self.enable_lane_change:
+                self.change_lane_policy()
+            action['steering'] = self.steering_control(self.target_lane_index)
+            action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
 
-        # Longitudinal: IDM
-        front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.lane_index)
-        action['acceleration'] = self.acceleration(ego_vehicle=self,
-                                                   front_vehicle=front_vehicle,
-                                                   rear_vehicle=rear_vehicle)
-        # When changing lane, check both current and target lanes
-        if self.lane_index != self.target_lane_index:
-            front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.target_lane_index)
-            target_idm_acceleration = self.acceleration(ego_vehicle=self,
-                                                        front_vehicle=front_vehicle,
-                                                        rear_vehicle=rear_vehicle)
-            action['acceleration'] = min(action['acceleration'], target_idm_acceleration)
-        # action['acceleration'] = self.recover_from_stop(action['acceleration'])
-        action['acceleration'] = np.clip(action['acceleration'], -self.ACC_MAX, self.ACC_MAX)
-        Vehicle.act(self, action)  # Skip ControlledVehicle.act(), or the command will be overriden.
+            # Longitudinal: IDM
+            front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.lane_index)
+            action['acceleration'] = self.acceleration(ego_vehicle=self,
+                                                       front_vehicle=front_vehicle,
+                                                       rear_vehicle=rear_vehicle)
+            # When changing lane, check both current and target lanes
+            if self.lane_index != self.target_lane_index:
+                front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.target_lane_index)
+                target_idm_acceleration = self.acceleration(ego_vehicle=self,
+                                                            front_vehicle=front_vehicle,
+                                                            rear_vehicle=rear_vehicle)
+                action['acceleration'] = min(action['acceleration'], target_idm_acceleration)
+            # action['acceleration'] = self.recover_from_stop(action['acceleration'])
+            action['acceleration'] = np.clip(action['acceleration'], -self.ACC_MAX, self.ACC_MAX)
+            # print(action)
+            Vehicle.act(self, action)  # Skip ControlledVehicle.act(), or the command will be overriden.
 
     def step(self, dt: float):
         """
@@ -118,7 +166,20 @@ class IDMVehicle(ControlledVehicle):
         :param dt: timestep
         """
         self.timer += dt
-        super().step(dt)
+        self.dt = dt
+        # super().step(dt)
+        if self.desired_position is not None:
+            old_position = self.position
+            if not math.isnan(self.desired_position[0]):
+                # print(self.position_list[self.i])
+                self.position = np.array(self.desired_position)
+            # print(self.position)
+            # if self.position[0] != old_position[0]:
+            #     self.heading = np.pi + (self.position[1] - old_position[1]) / (self.position[0] - old_position[0])
+            self.desired_position = None
+            self.speed = np.linalg.norm(self.position - old_position) / self.dt
+        else:
+            super().step(dt)
 
     def acceleration(self,
                      ego_vehicle: ControlledVehicle,
