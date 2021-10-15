@@ -175,7 +175,7 @@ class DatasetMergeEnv(AbstractEnv):
 
         # other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
         other_vehicles_type = utils.class_from_path("highway_env.vehicle.kinematics.DirectSetVehicle")
-        position_list = [[1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
+        '''position_list = [[1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
                          [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
                          [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
                          [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010], [1100, 1010],
@@ -210,7 +210,7 @@ class DatasetMergeEnv(AbstractEnv):
 
 
 
-                         ]
+                         ]'''
         reader = Reader(scene_type='paths')
         _, _, paths = reader.scene()
         ped_id = paths[0][0].pedestrian

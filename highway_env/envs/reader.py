@@ -29,7 +29,7 @@ class Reader(object):
         
     def read_file(self, input_file):
         #pdb.set_trace()
-        self.scene_id = 35091
+        self.scene_id = 38928
         with open(input_file, 'r') as f:
             # print(f)
             for line in f:
@@ -45,7 +45,7 @@ class Reader(object):
 
                 track = line.get('track')
                 if track is not None:
-                    if track['f'] <= end and track['f'] >= (start + 25):
+                    if track['f'] <= end and track['f'] >= start:
                         row = TrackRow(track['f'], track['p'], track['x'], track['y'])
                         self.tracks_by_frame[row.frame].append(row)
                     #pdb.set_trace()
@@ -80,7 +80,7 @@ class Reader(object):
                 if row.frame not in frame_to_index:
                     continue
                 entry = xy[ped_index][frame_to_index[row.frame]]
-                entry[1] = - row.x + 1966.5
+                entry[1] = -row.x
                 entry[0] = row.y
         # pdb.set_trace()
         return xy

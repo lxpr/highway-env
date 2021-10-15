@@ -9,3 +9,5 @@ from highway_env.envs.lane_keeping_env import *
 from highway_env.envs.u_turn_env import *
 from highway_env.envs.exit_env import *
 from highway_env.envs.dataset_merge_env import *
+from highway_env.envs.dataset_merge_env_M import *
+from highway_env.envs.dataset_merge_env_M1 import *

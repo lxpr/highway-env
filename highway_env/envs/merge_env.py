@@ -58,11 +58,11 @@ class MergeEnv(AbstractEnv):
                 reward += self.MERGING_SPEED_REWARD * \
                           (vehicle.target_speed - vehicle.speed) / vehicle.target_speed
 
-        return utils.lmap(action_reward[action] + reward,
-                          [self.COLLISION_REWARD + self.MERGING_SPEED_REWARD,
-                            self.HIGH_SPEED_REWARD + self.RIGHT_LANE_REWARD],
-                          [0, 1])
-        '''if isinstance(action, int):
+        # return utils.lmap(action_reward[action] + reward,
+        #                   [self.COLLISION_REWARD + self.MERGING_SPEED_REWARD,
+        #                     self.HIGH_SPEED_REWARD + self.RIGHT_LANE_REWARD],
+        #                   [0, 1])
+        if isinstance(action, int):
             return utils.lmap(action_reward[action] + reward,
                               [self.COLLISION_REWARD + self.MERGING_SPEED_REWARD,
                                self.HIGH_SPEED_REWARD + self.RIGHT_LANE_REWARD],
@@ -71,7 +71,7 @@ class MergeEnv(AbstractEnv):
             return utils.lmap(self.LANE_CHANGE_REWARD * abs(action[1]) + reward,
                               [self.COLLISION_REWARD + self.MERGING_SPEED_REWARD,
                                self.HIGH_SPEED_REWARD + self.RIGHT_LANE_REWARD],
-                          [0, 1])'''
+                          [0, 1])
 
     def _is_terminal(self) -> bool:
         """The episode is over when a collision occurs or when the access ramp has been passed."""
@@ -127,14 +127,14 @@ class MergeEnv(AbstractEnv):
         ego_vehicle = self.action_type.vehicle_class(road,
                                                      road.network.get_lane(("a", "b", 1)).position(30, 0),
                                                      speed=3)
-        ego_vehicle.target_speed = 3
+        ego_vehicle.target_speed = 2.8
         road.vehicles.append(ego_vehicle)
 
         other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
         road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 0)).position(90, 0), speed=5))
         road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 1)).position(75, 0), speed=3))
         road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 0)).position(2, 0), speed=6))
-        road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 1)).position(42, 0), speed=2.5))
+        # road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 1)).position(42, 0), speed=2.5))
         road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 1)).position(10, 0), speed=2))
         road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 0)).position(50, 0), speed=4))
         # road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 1)).position(48, 0), speed=3))
@@ -144,16 +144,16 @@ class MergeEnv(AbstractEnv):
 
 
         merging_v = other_vehicles_type(road, road.network.get_lane(("j", "k", 0)).position(20, 0), speed=5)
-        merging_v.target_speed = 3
+        # merging_v.target_speed = 3
         road.vehicles.append(merging_v)
         merging_v1 = other_vehicles_type(road, road.network.get_lane(("j", "k", 0)).position(40, 0), speed=4)
-        merging_v1.target_speed = 3
+        # merging_v1.target_speed = 3
         road.vehicles.append(merging_v1)
         merging_v2 = other_vehicles_type(road, road.network.get_lane(("j", "k", 0)).position(65, 0), speed=4.5)
-        merging_v2.target_speed = 2.5
+        # merging_v2.target_speed = 2.5
         road.vehicles.append(merging_v2)
         merging_v3 = other_vehicles_type(road, road.network.get_lane(("j", "k", 0)).position(82, 0), speed=3.5)
-        merging_v3.target_speed = 3
+        # merging_v3.target_speed = 3
         road.vehicles.append(merging_v3)
 
         '''ego_vehicle = self.action_type.vehicle_class(road,
