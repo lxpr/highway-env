@@ -29,7 +29,8 @@ class Reader(object):
         
     def read_file(self, input_file):
         #pdb.set_trace()
-        self.scene_id = 38928
+        # self.scene_id = 38928
+        self.scene_id = 40015
         with open(input_file, 'r') as f:
             # print(f)
             for line in f:

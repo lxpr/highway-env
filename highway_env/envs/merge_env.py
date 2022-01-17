@@ -127,7 +127,7 @@ class MergeEnv(AbstractEnv):
         ego_vehicle = self.action_type.vehicle_class(road,
                                                      road.network.get_lane(("a", "b", 1)).position(30, 0),
                                                      speed=3)
-        ego_vehicle.target_speed = 2.8
+        ego_vehicle.target_speed = 3
         road.vehicles.append(ego_vehicle)
 
         other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
