@@ -24,13 +24,17 @@ class DatasetMergeMEnv(AbstractEnv):
     It is rewarded for maintaining a high speed and avoiding collisions, but also making room for merging
     vehicles.
     """
-
-    COLLISION_REWARD: float = -100
-    RIGHT_LANE_REWARD: float = 0.1
-    HIGH_SPEED_REWARD: float = 0.2
-    MERGING_SPEED_REWARD: float = -0.5
-    LANE_CHANGE_REWARD: float = -0.05
-    CLOSE_DISTANCE_REWARD: float = -2
+    @classmethod
+    def default_config(cls) -> dict:
+        cfg = super().default_config()
+        cfg.update({
+            "collision_reward": -1,
+            "right_lane_reward": 0.1,
+            "high_speed_reward": 0.2,
+            "merging_speed_reward": -0.5,
+            "lane_change_reward": -0.05,
+        })
+        return cfg
 
     def _reward(self, action: int) -> float:
         """
@@ -41,43 +45,25 @@ class DatasetMergeMEnv(AbstractEnv):
         :param action: the action performed
         :return: the reward of the state-action transition
         """
-        action_reward = {0: self.LANE_CHANGE_REWARD,
+        action_reward = {0: self.config["lane_change_reward"],
                          1: 0,
-                         2: self.LANE_CHANGE_REWARD,
+                         2: self.config["lane_change_reward"],
                          3: 0,
                          4: 0}
-        # print("vehicle crashed:", self.vehicle.crashed)
-        front_vehicle, rear_vehicle = self.vehicle.road.neighbour_vehicles(self.vehicle, self.vehicle.target_lane_index)
-
-        reward = self.COLLISION_REWARD * self.vehicle.crashed \
-                 + self.RIGHT_LANE_REWARD * self.vehicle.lane_index[2] / 1 \
-                 + self.HIGH_SPEED_REWARD * self.vehicle.speed_index / (self.vehicle.SPEED_COUNT - 1)
-
-        if front_vehicle:
-            d = self.vehicle.lane_distance_to(front_vehicle)
-            reward = reward + self.CLOSE_DISTANCE_REWARD / d
-        # print("reward:", reward)
+        reward = self.config["collision_reward"] * self.vehicle.crashed \
+                 + self.config["right_lane_reward"] * self.vehicle.lane_index[2] / 1 \
+                 + self.config["high_speed_reward"] * self.vehicle.speed_index / (self.vehicle.target_speeds.size - 1)
 
         # Altruistic penalty
         for vehicle in self.road.vehicles:
             if vehicle.lane_index == ("b", "c", 2) and isinstance(vehicle, ControlledVehicle):
-                reward += self.MERGING_SPEED_REWARD * \
+                reward += self.config["merging_speed_reward"] * \
                           (vehicle.target_speed - vehicle.speed) / vehicle.target_speed
 
-        return utils.lmap(reward,
-                          [self.COLLISION_REWARD + self.MERGING_SPEED_REWARD,
-                            self.HIGH_SPEED_REWARD + self.RIGHT_LANE_REWARD],
+        return utils.lmap(action_reward[action] + reward,
+                          [self.config["collision_reward"] + self.config["merging_speed_reward"],
+                           self.config["high_speed_reward"] + self.config["right_lane_reward"]],
                           [0, 1])
-        '''if isinstance(action, int):
-            return utils.lmap(action_reward[action] + reward,
-                              [self.COLLISION_REWARD + self.MERGING_SPEED_REWARD,
-                               self.HIGH_SPEED_REWARD + self.RIGHT_LANE_REWARD],
-                              [0, 1])
-        else:
-            return utils.lmap(self.LANE_CHANGE_REWARD * abs(action[1]) + reward,
-                              [self.COLLISION_REWARD + self.MERGING_SPEED_REWARD,
-                               self.HIGH_SPEED_REWARD + self.RIGHT_LANE_REWARD],
-                          [0, 1])'''
 
     def _is_terminal(self) -> bool:
         """The episode is over when a collision occurs or when the access ramp has been passed."""
@@ -156,13 +142,19 @@ class DatasetMergeMEnv(AbstractEnv):
         net.add_lane("k", "l", StraightLane([(1094.16282 + 1089.03954) / 2, -(958.61991 + 961.85161) / 2],
                                             [(1080.12895 + 1080.25129) / 2, -(957.40215 + 961.06428) / 2], 3.66213, line_types=[c, n]))
 
-        net.add_lane("l", "e", StraightLane([(1080.22909 + 1080.25129) / 2, -(963.74919 + 961.06428) / 2],
-                                            [(1063.87215 + 1063.57299) / 2, -(960.96007 + 957.39410) / 2], 2.71163,
-                                            line_types=[n, c]))
+        # net.add_lane("l", "e", StraightLane([(1080.22909 + 1080.25129) / 2, -(963.74919 + 961.06428) / 2],
+        #                                     [(1063.87215 + 1063.57299) / 2, -(960.96007 + 957.39410) / 2], 2.71163,
+        #                                     line_types=[n, c]))
+        lle = StraightLane([(1080.22909 + 1080.25129) / 2, -(963.74919 + 961.06428) / 2],
+                           [(1063.87215 + 1063.57299) / 2, -(960.96007 + 963.69410) / 2], 2.71163,
+                           line_types=[n, c])
+        net.add_lane("l", "e", lle)
         net.add_lane("l", "e", StraightLane([(1080.12895 + 1080.25129) / 2, -(957.40215 + 961.06428) / 2],
                                             [(1063.87215 + 1063.57299) / 2, -(960.96007 + 957.39410) / 2], 3.66213,
                                             line_types=[c, s]))
+        
         road = Road(network=net, np_random=self.np_random, record_history=self.config["show_trajectories"])
+        road.objects.append(Obstacle(road, lle.position(14.5, 0)))
         self.road = road
 
     def _make_vehicles(self) -> None:
@@ -184,7 +176,8 @@ class DatasetMergeMEnv(AbstractEnv):
 
         # other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
         real_ego_vehicles_type = utils.class_from_path("highway_env.vehicle.behavior.IDMVehicle")
-        other_vehicles_type = utils.class_from_path("highway_env.vehicle.kinematics.DirectSetVehicle")
+        other_vehicles_type = utils.class_from_path("highway_env.vehicle.behavior.IDMVehicle")
+        # other_vehicles_type = utils.class_from_path("highway_env.vehicle.kinematics.DirectSetVehicle")
         
         reader = Reader(scene_type='paths')
         _, _, paths = reader.scene()
@@ -192,26 +185,54 @@ class DatasetMergeMEnv(AbstractEnv):
         xy = Reader.paths_to_xy(paths)
         # print(paths)
         # print(xy)
+        # ego_vehicle = self.action_type.vehicle_class(road,
+        #                                              [xy[0][4][0], xy[0][4][1]], heading = np.pi,
+        #                                              speed=0)
+        # ego_vehicle = self.action_type.vehicle_class(road,
+        #                                              [xy[0][4][0] - 140, xy[0][4][1] + 10], heading=np.pi,
+        #                                              speed=0)
         ego_vehicle = self.action_type.vehicle_class(road,
-                                                     [xy[0][4][0] + 20, xy[0][4][1]], heading = np.pi,
+                                                     [xy[0][4][0] - 70, xy[0][4][1] + 10], heading=np.pi,
                                                      speed=0)
         ego_vehicle.target_speed = 0
         road.vehicles.append(ego_vehicle)
-        print(xy[0][:])
-        print(np.pi + (xy[0][5][1] - xy[0][4][1]) / (xy[0][5][0] - xy[0][4][0]))
+        # print(xy[0][:])
+        # print(np.pi + (xy[0][5][1] - xy[0][4][1]) / (xy[0][5][0] - xy[0][4][0]))
         road.vehicles.append(
             real_ego_vehicles_type(road, xy[0][4], heading=np.pi + (xy[0][5][1] - xy[0][4][1]) / (xy[0][5][0] - xy[0][4][0]),
                                    speed=2*np.sqrt((xy[0][4][0] - xy[0][3][0]) ** 2 + (xy[0][4][1] - xy[0][3][1]) ** 2)))
 
+        # for i in range(1, len(xy)):
+        #     print('xy', i, xy[i][4])
+        o = 2
+        print('xy', o, xy[o][4:])
+        self.reference = xy[o][4:]
         for i in range(1, len(xy)):
+        # TODO: comment the next line and use the former one
+        # for i in range(1, 2):
             position_list = xy[i][4:]
+            if xy[i][4][0] - xy[i][0][0] >= 0:
+                continue
+            if np.isnan(xy[i][4][0] - xy[i][0][0]):
+                continue
             if not math.isnan(xy[i][4][0]):
                 starting_point = xy[i][4]
                 # print(position_list[1])
             else:
                 starting_point = [10000, 10000]
+            # road.vehicles.append(
+            #     other_vehicles_type(road, starting_point, position_list))
+            if np.isnan(np.pi + (xy[i][5][1] - xy[i][4][1]) / (xy[i][5][0] - xy[i][4][0])):
+                heading = np.pi
+            else:
+                heading = heading = np.pi + (xy[i][5][1] - xy[i][4][1]) / (xy[i][5][0] - xy[i][4][0])
+            if np.isnan(2*np.sqrt((xy[i][4][0] - xy[i][3][0]) ** 2 + (xy[i][4][1] - xy[i][3][1]) ** 2)):
+                speed = 5
+            else:
+                speed = 2 * np.sqrt((xy[i][4][0] - xy[i][3][0]) ** 2 + (xy[i][4][1] - xy[i][3][1]) ** 2)
+            # print(heading, speed)
             road.vehicles.append(
-                other_vehicles_type(road, starting_point, position_list))
+                other_vehicles_type(road, starting_point, heading=heading, speed=speed, target_speed = 5))
 
         # road.vehicles.append(other_vehicles_type(road, road.network.get_lane(("a", "b", 0)).position(5, 0), position_list, speed=5))
 

@@ -57,11 +57,11 @@ def finite_mdp(env: 'AbstractEnv',
     
     state_reward = \
         + env.config["collision_reward"] * grid \
-        + env.RIGHT_LANE_REWARD * np.tile(lanes[np.newaxis, :, np.newaxis], (v, 1, t)) \
-        + env.HIGH_SPEED_REWARD * np.tile(speeds[:, np.newaxis, np.newaxis], (1, l, t))
+        + env.config["right_lane_reward"] * np.tile(lanes[np.newaxis, :, np.newaxis], (v, 1, t)) \
+        + env.config["high_speed_reward"] * np.tile(speeds[:, np.newaxis, np.newaxis], (1, l, t))
     
     state_reward = np.ravel(state_reward)
-    action_reward = [env.LANE_CHANGE_REWARD, 0, env.LANE_CHANGE_REWARD, 0, 0]
+    action_reward = [env.config["lane_change_reward"], 0, env.config["lane_change_reward"], 0, 0]
     reward = np.fromfunction(np.vectorize(lambda s, a: state_reward[s] + action_reward[a]),
                              (np.size(state_reward), np.size(action_reward)),  dtype=int)
 
@@ -96,7 +96,7 @@ def compute_ttc_grid(env: 'AbstractEnv',
     """
     vehicle = vehicle or env.vehicle
     road_lanes = env.road.network.all_side_lanes(env.vehicle.lane_index)
-    grid = np.zeros((vehicle.SPEED_COUNT, len(road_lanes), int(horizon / time_quantization)))
+    grid = np.zeros((vehicle.target_speeds.size, len(road_lanes), int(horizon / time_quantization)))
     for speed_index in range(grid.shape[0]):
         ego_speed = vehicle.index_to_speed(speed_index)
         for other in env.road.vehicles:
