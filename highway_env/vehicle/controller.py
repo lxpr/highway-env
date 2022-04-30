@@ -4,7 +4,7 @@ import numpy as np
 import copy
 from highway_env import utils
 from highway_env.road.road import Road, LaneIndex, Route
-from highway_env.types import Vector
+from highway_env.utils import Vector
 from highway_env.vehicle.kinematics import Vehicle
 
 
@@ -29,7 +29,7 @@ class ControlledVehicle(Vehicle):
     KP_HEADING = 1 / TAU_HEADING
     KP_LATERAL = 1 / TAU_LATERAL  # [1/s]
     MAX_STEERING_ANGLE = np.pi / 3  # [rad]
-    DELTA_SPEED = 1  # [m/s]
+    DELTA_SPEED = 5  # [m/s]
 
     def __init__(self,
                  road: Road,
@@ -78,10 +78,8 @@ class ControlledVehicle(Vehicle):
     def act(self, action: Union[dict, str] = None) -> None:
         """
         Perform a high-level action to change the desired lane or speed.
-
         - If a high-level action is provided, update the target speed and lane;
         - then, perform longitudinal and lateral control.
-
         :param action: a high-level action
         """
         self.follow_road()
@@ -204,9 +202,9 @@ class MDPVehicle(ControlledVehicle):
 
     """A controlled vehicle with a specified discrete range of allowed target speeds."""
 
-    SPEED_COUNT: int = 5  # []
-    SPEED_MIN: float = 1  # [m/s]
-    SPEED_MAX: float = 5  # [m/s]
+    SPEED_COUNT: int = 3  # []
+    SPEED_MIN: float = 20  # [m/s]
+    SPEED_MAX: float = 30  # [m/s]
 
     def __init__(self,
                  road: Road,
@@ -222,24 +220,31 @@ class MDPVehicle(ControlledVehicle):
 
     def act(self, action: Union[dict, str] = None) -> None:
         """
-        Perform a high-level action.
-
-        - If the action is a speed change, choose speed from the allowed discrete range.
-        - Else, forward action to the ControlledVehicle handler.
-
+        Perform a high-level action to change the desired lane or speed.
+        - If a high-level action is provided, update the target speed and lane;
+        - then, perform longitudinal and lateral control.
         :param action: a high-level action
         """
-        # print('self.speed:', self.speed)
+        self.follow_road()
         if action == "FASTER":
-            self.speed_index = self.speed_to_index(self.speed) + 1
+            self.target_speed += self.DELTA_SPEED
         elif action == "SLOWER":
-            self.speed_index = self.speed_to_index(self.speed) - 1
-        else:
-            super().act(action)
-            return
-        self.speed_index = int(np.clip(self.speed_index, 0, self.SPEED_COUNT - 1))
-        self.target_speed = self.index_to_speed(self.speed_index)
-        super().act()
+            self.target_speed -= self.DELTA_SPEED
+        elif action == "LANE_RIGHT":
+            _from, _to, _id = self.target_lane_index
+            target_lane_index = _from, _to, np.clip(_id + 1, 0, len(self.road.network.graph[_from][_to]) - 1)
+            if self.road.network.get_lane(target_lane_index).is_reachable_from(self.position):
+                self.target_lane_index = target_lane_index
+        elif action == "LANE_LEFT":
+            _from, _to, _id = self.target_lane_index
+            target_lane_index = _from, _to, np.clip(_id - 1, 0, len(self.road.network.graph[_from][_to]) - 1)
+            if self.road.network.get_lane(target_lane_index).is_reachable_from(self.position):
+                self.target_lane_index = target_lane_index
+
+        action = {"steering": self.steering_control(self.target_lane_index),
+                  "acceleration": self.speed_control(self.target_speed)}
+        action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
+        super().act(action)
 
     def index_to_speed(self, index: int) -> float:
         """
