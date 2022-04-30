@@ -2,7 +2,6 @@ import os
 from typing import TYPE_CHECKING, Callable, List, Optional
 import numpy as np
 import pygame
-from gym.spaces import Discrete
 
 from highway_env.envs.common.action import ActionType, DiscreteMetaAction, ContinuousAction
 from highway_env.road.graphics import WorldSurface, RoadGraphics
@@ -73,8 +72,8 @@ class EnvViewer(object):
 
         :param actions: list of action, following the env's action space specification
         """
-        if isinstance(self.env.action_space, Discrete):
-            actions = [self.env.ACTIONS[a] for a in actions]
+        if isinstance(self.env.action_type, DiscreteMetaAction) and actions[0] != "IDM":
+            actions = [self.env.action_type.actions[a] for a in actions]
         if len(actions) > 1:
             self.vehicle_trajectory = self.env.vehicle.predict_trajectory(actions,
                                                                           1 / self.env.config["policy_frequency"],
@@ -169,7 +168,7 @@ class EventHandler(object):
         """
         if isinstance(action_type, DiscreteMetaAction):
             cls.handle_discrete_action_event(action_type, event)
-        elif isinstance(action_type, ContinuousAction):
+        elif action_type.__class__ == ContinuousAction:
             cls.handle_continuous_action_event(action_type, event)
 
     @classmethod
