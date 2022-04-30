@@ -81,6 +81,7 @@ class RoadNetwork(object):
         next_to = next_id = None
         # Pick next road according to planned route
         if route:
+            # print("route", route)
             if route[0][:2] == current_index[:2]:  # We just finished the first step of the route, drop it.
                 route.pop(0)
             if route and route[0][0] == _to:  # Next road in route is starting at the end of current road.
@@ -98,11 +99,13 @@ class RoadNetwork(object):
                 lanes_dists = [(next_to,
                                 *self.next_lane_given_next_road(_from, _to, _id, next_to, next_id, projected_position))
                                for next_to in self.graph[_to].keys()]  # (next_to, next_id, distance)
+                # print("dists:", current_index, lanes_dists)
                 next_to, next_id, _ = min(lanes_dists, key=lambda x: x[-1])
             except KeyError:
                 return current_index
         else:
             # If it is known, follow it and get the closest lane
+            
             next_id, _ = self.next_lane_given_next_road(_from, _to, _id, next_to, next_id, projected_position)
         return _to, next_to, next_id
 
@@ -289,14 +292,6 @@ class Road(object):
 
         if sort:
             vehicles = sorted(vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
-        if count:
-            vehicles = vehicles[:count]
-        return vehicles
-
-    def vehicles_unsorted(self, vehicle: 'kinematics.Vehicle', count: int = None) -> object:
-        vehicles = [v for v in self.vehicles
-                    if v is not vehicle]
-
         if count:
             vehicles = vehicles[:count]
         return vehicles

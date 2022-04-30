@@ -241,7 +241,7 @@ class RoadGraphics(object):
                     LaneGraphics.display(l, surface)
 
     @staticmethod
-    def display_traffic(road: Road, surface: WorldSurface, simulation_frequency: int = 15, offscreen: bool = False, verification_mode: bool = False) \
+    def display_traffic(road: Road, surface: WorldSurface, simulation_frequency: int = 15, offscreen: bool = False) \
             -> None:
         """
         Display the road vehicles on a surface.
@@ -250,13 +250,12 @@ class RoadGraphics(object):
         :param surface: the pygame surface
         :param simulation_frequency: simulation frequency
         :param offscreen: render without displaying on a screen
-        :param verification_mode: whether the ego vehicle should be hidden
         """
         if road.record_history:
             for v in road.vehicles:
                 VehicleGraphics.display_history(v, surface, simulation=simulation_frequency, offscreen=offscreen)
         for v in road.vehicles:
-            VehicleGraphics.display(v, surface, offscreen=offscreen, verification_mode=verification_mode)
+            VehicleGraphics.display(v, surface, offscreen=offscreen)
 
     @staticmethod
     def display_road_objects(road: Road, surface: WorldSurface, offscreen: bool = False) -> None:

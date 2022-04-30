@@ -25,6 +25,10 @@ def lmap(v: float, x: Interval, y: Interval) -> float:
     """Linear map of value v with range x to desired range y."""
     return y[0] + (v - x[0]) * (y[1] - y[0]) / (x[1] - x[0])
 
+def lmap_with_limit(v: float, x: Interval, y: Interval) -> float:
+    """Linear map of value v with range x to desired range y. If v is above the upper bound of x, regard it as the upper bound"""
+    return y[0] + (min(v, x[1]) - x[0]) * (y[1] - y[0]) / (x[1] - x[0])
+
 
 def class_from_path(path: str) -> Callable:
     module_name, class_name = path.rsplit(".", 1)
