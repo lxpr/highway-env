@@ -31,7 +31,7 @@ class RampEnv(AbstractEnv):
                 "type": "DiscreteMetaAction",
             },
             "lanes_count": 2,
-            "vehicles_count": 80,
+            "vehicles_count": 120,
             "controlled_vehicles": 1,
             "other_vehicles_type": "highway_env.vehicle.behavior.IDMVehicle",
             "aggressive_vehicle_type": "highway_env.vehicle.behavior.AggressiveCar",
@@ -41,13 +41,13 @@ class RampEnv(AbstractEnv):
             "duration": 60,  # [s]
             "ego_spacing": 2,
             "vehicles_density": 1,
-            "collision_reward": -100,    # The reward received when colliding with a vehicle.
+            "collision_reward": -1,    # The reward received when colliding with a vehicle.
             "right_lane_reward": 0,  # The reward received when driving on the right-most lanes, linearly mapped to
                                        # zero for other lanes.
             "high_speed_reward": 0.4,  # The reward received when driving at full speed, linearly mapped to zero for
                                        # lower speeds according to config["reward_speed_range"].
             "lane_change_reward": -0.1,# The reward received at each lane change action.
-            "stop_reward": -0.2,       # The reward received when speed is 0
+            "stop_reward": 0,       # The reward received when speed is 0
             "min_distance_reward": -1, # A coefficent for exponential penalty according to the distance to the closest vehicle
             "reward_speed_range": [0, 25],
             "offroad_terminal": True
@@ -61,9 +61,9 @@ class RampEnv(AbstractEnv):
     def _create_road(self) -> None:
         """Create a road composed of on/off-ramp lanes."""
         center = [0, 0]  # [m]
-        radius = 300  # [m]
+        radius = 400  # [m]
         alpha = 45  # [deg]
-        straight_length = 50 # [m]
+        straight_length = 100 # [m]
         lane_width = 4 # [m]
 
         net = RoadNetwork()
@@ -151,7 +151,7 @@ class RampEnv(AbstractEnv):
             while True:
                 controlled_vehicle = MDPIDMVehicle.create_random(
                     self.road,
-                    speed=20,
+                    speed=10 + rng.uniform(high=15),
                     lane_id=self.config["initial_lane_id"],
                     spacing=self.config["ego_spacing"]
                 )
@@ -209,12 +209,13 @@ class RampEnv(AbstractEnv):
                                                               low=0,
                                                               high=self.road.network.get_lane(random_lane_index).length
                                                           ),
-                                                          speed=10 + rng.uniform(high=10))
+                                                          speed=10 + rng.uniform(high=15))
                         # Prevent early collisions
                         for v in self.road.vehicles:
-                            if np.linalg.norm(vehicle.position - v.position) < 15:
+                            if np.linalg.norm(vehicle.position - v.position) < 20:
                                 break
                         else:
+                            vehicle.randomize_behavior()
                             self.road.vehicles.append(vehicle)
                             break
 
@@ -268,8 +269,6 @@ class RampEnv(AbstractEnv):
             else self.vehicle.lane_index[2]
         scaled_speed = utils.lmap_with_limit(self.vehicle.speed, self.config["reward_speed_range"], [0, 1])
         front_vehicle, rear_vehicle = self.vehicle.road.neighbour_vehicles(self.vehicle, self.vehicle.lane_index)
-        if self.vehicle.lane_index != self.vehicle.target_lane_index:
-            front_vehicle, rear_vehicle = self.vehicle.road.neighbour_vehicles(self.vehicle, self.vehicle.target_lane_index)
         default_distance = 50
         if front_vehicle:
             d_front = abs(self.vehicle.lane_distance_to(front_vehicle))
@@ -278,7 +277,20 @@ class RampEnv(AbstractEnv):
         if rear_vehicle:
             d_rear = abs(self.vehicle.lane_distance_to(rear_vehicle))
         else:
-            d_rear = default_distance 
+            d_rear = default_distance
+        # Check the new lane if the vehicle is changing lane
+        if self.vehicle.lane_index != self.vehicle.target_lane_index:
+            front_vehicle_target, rear_vehicle_target = self.vehicle.road.neighbour_vehicles(self.vehicle, self.vehicle.target_lane_index)
+            if front_vehicle_target:
+                d_front_target = abs(self.vehicle.lane_distance_to(front_vehicle_target))
+            else:
+                d_front_target = default_distance
+            if rear_vehicle_target:
+                d_rear_target = abs(self.vehicle.lane_distance_to(rear_vehicle_target))
+            else:
+                d_rear_target = default_distance
+            d_front = min(d_front, d_front_target)
+            d_rear = min(d_rear, d_rear_target)
         min_distance = min(d_front, d_rear)
         # print(min_distance)
         reward = \
@@ -286,12 +298,25 @@ class RampEnv(AbstractEnv):
             + self.config["right_lane_reward"] * lane / max(len(neighbours) - 1, 1) \
             + self.config["high_speed_reward"] * np.clip(scaled_speed, 0, 1) \
             + self.config["stop_reward"] * self.vehicle.stop_time \
-            + self.config["min_distance_reward"] * (np.exp(1 / max(0.25, (min_distance - self.vehicle.LENGTH))) - 1) * (self.vehicle.speed > 2)
+            + self.config["min_distance_reward"] * np.exp(min(0, self.vehicle.LENGTH - min_distance)) * (
+                        self.vehicle.speed > 2)
+
+        action_reward = {0: self.config["lane_change_reward"],
+                         1: 0,
+                         2: self.config["lane_change_reward"],
+                         3: 0,
+                         4: 0}
+        if isinstance(action, int):
+            reward += action_reward[action]
+            # + self.config["min_distance_reward"] * (np.exp(1 / max(0.25, (min_distance - self.vehicle.LENGTH))) - 1) * (self.vehicle.speed > 2)
         # reward = utils.lmap(reward,
         #                   [self.config["collision_reward"],
         #                    self.config["high_speed_reward"] + self.config["right_lane_reward"]],
         #                   [-1, 1])
-        reward = -1 if not self.vehicle.on_road else reward
+        reward = self.config["collision_reward"] if not self.vehicle.on_road else reward
+        # if reward == 0:
+        #     print("mdr", self.config["min_distance_reward"] * np.exp(min(0, self.vehicle.LENGTH - min_distance)) * (
+        #                 self.vehicle.speed > 2))
         return reward
 
     def _is_terminal(self) -> bool:
