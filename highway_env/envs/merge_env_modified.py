@@ -7,9 +7,10 @@ from highway_env.road.lane import LineType, StraightLane, SineLane
 from highway_env.road.road import Road, RoadNetwork
 from highway_env.vehicle.controller import ControlledVehicle
 from highway_env.vehicle.objects import Obstacle
+from highway_env.vehicle.behavior import MDPIDMVehicle
 
 
-class MergeEnv(AbstractEnv):
+class MergeEnvModified(AbstractEnv):
 
     """
     A highway merge negotiation environment.
@@ -28,6 +29,8 @@ class MergeEnv(AbstractEnv):
             "high_speed_reward": 0.2,
             "merging_speed_reward": -0.5,
             "lane_change_reward": -0.05,
+            "stop_reward": -0.1,  # The reward received when speed is 0
+            "reward_speed_range": [0, 35],
         })
         return cfg
 
@@ -40,25 +43,40 @@ class MergeEnv(AbstractEnv):
         :param action: the action performed
         :return: the reward of the state-action transition
         """
-        action_reward = {0: self.config["lane_change_reward"],
-                         1: 0,
-                         2: self.config["lane_change_reward"],
-                         3: 0,
-                         4: 0}
-        reward = self.config["collision_reward"] * self.vehicle.crashed \
-            + self.config["right_lane_reward"] * self.vehicle.lane_index[2] / 1 \
-            + self.config["high_speed_reward"] * self.vehicle.speed_index / (self.vehicle.SPEED_COUNT - 1)
-
-        # Altruistic penalty
-        for vehicle in self.road.vehicles:
-            if vehicle.lane_index == ("b", "c", 2) and isinstance(vehicle, ControlledVehicle):
-                reward += self.config["merging_speed_reward"] * \
-                          (vehicle.target_speed - vehicle.speed) / vehicle.target_speed
-
-        return utils.lmap(action_reward[action] + reward,
-                          [self.config["collision_reward"] + self.config["merging_speed_reward"],
+        # action_reward = {0: self.config["lane_change_reward"],
+        #                  1: 0,
+        #                  2: self.config["lane_change_reward"],
+        #                  3: 0,
+        #                  4: 0}
+        # reward = self.config["collision_reward"] * self.vehicle.crashed \
+        #     + self.config["right_lane_reward"] * self.vehicle.lane_index[2] / 1 \
+        #     + self.config["high_speed_reward"] * self.vehicle.speed_index / (self.vehicle.SPEED_COUNT - 1)
+        # 
+        # # Altruistic penalty
+        # for vehicle in self.road.vehicles:
+        #     if vehicle.lane_index == ("b", "c", 2) and isinstance(vehicle, ControlledVehicle):
+        #         reward += self.config["merging_speed_reward"] * \
+        #                   (vehicle.target_speed - vehicle.speed) / vehicle.target_speed
+        # 
+        # return utils.lmap(action_reward[action] + reward,
+        #                   [self.config["collision_reward"] + self.config["merging_speed_reward"],
+        #                    self.config["high_speed_reward"] + self.config["right_lane_reward"]],
+        #                   [0, 1])
+        neighbours = self.road.network.all_side_lanes(self.vehicle.lane_index)
+        lane = self.vehicle.target_lane_index[2] if isinstance(self.vehicle, ControlledVehicle) \
+            else self.vehicle.lane_index[2]
+        scaled_speed = utils.lmap_with_limit(self.vehicle.speed, self.config["reward_speed_range"], [0, 1])
+        reward = \
+            + self.config["collision_reward"] * self.vehicle.crashed \
+            + self.config["right_lane_reward"] * lane / max(len(neighbours) - 1, 1) \
+            + self.config["high_speed_reward"] * np.clip(scaled_speed, 0, 1) \
+            + self.config["stop_reward"] * (self.vehicle.speed <= 0)
+        reward = utils.lmap(reward,
+                          [self.config["collision_reward"],
                            self.config["high_speed_reward"] + self.config["right_lane_reward"]],
-                          [0, 1])
+                          [-1, 1])
+        reward = -1 if not self.vehicle.on_road else reward
+        return reward
 
     def _is_terminal(self) -> bool:
         """The episode is over when a collision occurs or when the access ramp has been passed."""
@@ -108,9 +126,12 @@ class MergeEnv(AbstractEnv):
         :return: the ego-vehicle
         """
         road = self.road
-        ego_vehicle = self.action_type.vehicle_class(road,
+        # ego_vehicle = self.action_type.vehicle_class(road,
+        #                                              road.network.get_lane(("a", "b", 1)).position(30, 0),
+        #                                              speed=6)
+        ego_vehicle = MDPIDMVehicle(road,
                                                      road.network.get_lane(("a", "b", 1)).position(30, 0),
-                                                     speed=6)
+                                                     speed=30)
         road.vehicles.append(ego_vehicle)
 
         other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
@@ -125,6 +146,6 @@ class MergeEnv(AbstractEnv):
 
 
 register(
-    id='merge-v0',
-    entry_point='highway_env.envs:MergeEnv',
+    id='merge-v1',
+    entry_point='highway_env.envs:MergeEnvModified',
 )

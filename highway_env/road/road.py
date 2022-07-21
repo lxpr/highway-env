@@ -81,6 +81,7 @@ class RoadNetwork(object):
         next_to = next_id = None
         # Pick next road according to planned route
         if route:
+            # print("route", route)
             if route[0][:2] == current_index[:2]:  # We just finished the first step of the route, drop it.
                 route.pop(0)
             if route and route[0][0] == _to:  # Next road in route is starting at the end of current road.
@@ -98,11 +99,13 @@ class RoadNetwork(object):
                 lanes_dists = [(next_to,
                                 *self.next_lane_given_next_road(_from, _to, _id, next_to, next_id, projected_position))
                                for next_to in self.graph[_to].keys()]  # (next_to, next_id, distance)
+                # print("dists:", current_index, lanes_dists)
                 next_to, next_id, _ = min(lanes_dists, key=lambda x: x[-1])
             except KeyError:
                 return current_index
         else:
             # If it is known, follow it and get the closest lane
+            
             next_id, _ = self.next_lane_given_next_road(_from, _to, _id, next_to, next_id, projected_position)
         return _to, next_to, next_id
 
@@ -248,6 +251,12 @@ class RoadNetwork(object):
             route = route[1:]
         return self.get_lane(route[0]).position(longitudinal, lateral), self.get_lane(route[0]).heading_at(longitudinal)
 
+    def random_lane_index(self, np_random: np.random.RandomState) -> LaneIndex:
+        _from = np_random.choice(list(self.graph.keys()))
+        _to = np_random.choice(list(self.graph[_from].keys()))
+        _id = np_random.randint(len(self.graph[_from][_to]))
+        return _from, _to, _id
+
 
 class Road(object):
 
@@ -274,26 +283,15 @@ class Road(object):
         self.np_random = np_random if np_random else np.random.RandomState()
         self.record_history = record_history
 
-    def close_vehicles_to(self, vehicle: 'kinematics.Vehicle', distance: float, count: int = None,
-                          see_behind: bool = True) -> object:
+    def close_vehicles_to(self, vehicle: 'kinematics.Vehicle', distance: float, count: Optional[int] = None,
+                          see_behind: bool = True, sort: bool = True) -> object:
         vehicles = [v for v in self.vehicles
                     if np.linalg.norm(v.position - vehicle.position) < distance
                     and v is not vehicle
                     and (see_behind or -2 * vehicle.LENGTH < vehicle.lane_distance_to(v))]
 
-        vehicles = sorted(vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
-        if count:
-            vehicles = vehicles[:count]
-        return vehicles
-
-    def close_vehicles_to_unsorted(self, vehicle: 'kinematics.Vehicle', distance: float, count: int = None,
-                          see_behind: bool = True) -> object:
-        vehicles = [v for v in self.vehicles
-                    if np.linalg.norm(v.position - vehicle.position) < distance
-                    and v is not vehicle
-                    and (see_behind or -2 * vehicle.LENGTH < vehicle.lane_distance_to(v))]
-
-        # vehicles = sorted(vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
+        if sort:
+            vehicles = sorted(vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
         if count:
             vehicles = vehicles[:count]
         return vehicles
@@ -313,9 +311,9 @@ class Road(object):
             vehicle.step(dt)
         for i, vehicle in enumerate(self.vehicles):
             for other in self.vehicles[i+1:]:
-                vehicle.check_collision(other, dt)
+                vehicle.handle_collisions(other, dt)
             for other in self.objects:
-                vehicle.check_collision(other, dt)
+                vehicle.handle_collisions(other, dt)
 
     def neighbour_vehicles(self, vehicle: 'kinematics.Vehicle', lane_index: LaneIndex = None) \
             -> Tuple[Optional['kinematics.Vehicle'], Optional['kinematics.Vehicle']]:

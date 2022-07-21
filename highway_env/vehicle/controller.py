@@ -20,6 +20,7 @@ class ControlledVehicle(Vehicle):
     """ Desired velocity."""
 
     """Characteristic time"""
+    FREQUENCY_RATIO = 1
     TAU_ACC = 0.6  # [s]
     TAU_HEADING = 0.2  # [s]
     TAU_LATERAL = 0.6  # [s]
@@ -125,16 +126,16 @@ class ControlledVehicle(Vehicle):
         """
         target_lane = self.road.network.get_lane(target_lane_index)
         lane_coords = target_lane.local_coordinates(self.position)
-        lane_next_coords = lane_coords[0] + self.speed * self.TAU_PURSUIT
+        lane_next_coords = lane_coords[0] + self.speed * self.TAU_PURSUIT * self.FREQUENCY_RATIO
         lane_future_heading = target_lane.heading_at(lane_next_coords)
 
         # Lateral position control
-        lateral_speed_command = - self.KP_LATERAL * lane_coords[1]
+        lateral_speed_command = - self.KP_LATERAL / self.FREQUENCY_RATIO * lane_coords[1]
         # Lateral speed to heading
         heading_command = np.arcsin(np.clip(lateral_speed_command / utils.not_zero(self.speed), -1, 1))
         heading_ref = lane_future_heading + np.clip(heading_command, -np.pi/4, np.pi/4)
         # Heading control
-        heading_rate_command = self.KP_HEADING * utils.wrap_to_pi(heading_ref - self.heading)
+        heading_rate_command = self.KP_HEADING / self.FREQUENCY_RATIO * utils.wrap_to_pi(heading_ref - self.heading)
         # Heading rate to steering angle
         steering_angle = np.arcsin(np.clip(self.LENGTH / 2 / utils.not_zero(self.speed) * heading_rate_command,
                                            -1, 1))
@@ -150,7 +151,7 @@ class ControlledVehicle(Vehicle):
         :param target_speed: the desired speed
         :return: an acceleration command [m/s2]
         """
-        return self.KP_A * (target_speed - self.speed)
+        return self.KP_A / self.FREQUENCY_RATIO * (target_speed - self.speed)
 
     def get_routes_at_intersection(self) -> List[Route]:
         """Get the list of routes that can be followed at the next intersection."""

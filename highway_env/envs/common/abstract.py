@@ -11,7 +11,7 @@ from highway_env.envs.common.action import action_factory, Action, DiscreteMetaA
 from highway_env.envs.common.observation import observation_factory, ObservationType
 from highway_env.envs.common.finite_mdp import finite_mdp
 from highway_env.envs.common.graphics import EnvViewer
-from highway_env.vehicle.behavior import IDMVehicle, LinearVehicle
+from highway_env.vehicle.behavior import IDMVehicle, LinearVehicle, IDMSimulateVehicle
 from highway_env.vehicle.controller import MDPVehicle
 from highway_env.vehicle.kinematics import Vehicle
 
@@ -345,11 +345,29 @@ class AbstractEnv(gym.Env):
 
         :return: a simplified environment state
         """
-        state_copy = copy.copy(self)
+        state_copy = copy.deepcopy(self)
         state_copy.road.vehicles = [state_copy.vehicle] + state_copy.road.close_vehicles_to(
             state_copy.vehicle, max_distance)
 
         return state_copy
+
+    def customer_simplify_simplified_model(self, max_distance) -> 'AbstractEnv':
+        """
+        Return a simplified copy of the environment where distant vehicles have been removed from the road.
+
+        This is meant to lower the policy computational load while preserving the optimal actions set.
+
+        :return: a simplified environment state
+        """
+        state_copy = copy.deepcopy(self)
+        surrounding_vehicles = state_copy.road.close_vehicles_to(state_copy.vehicle, max_distance)
+        simplified_surrounding_vehicles = []
+        for v in surrounding_vehicles:
+            simplified_surrounding_vehicles.append(IDMSimulateVehicle.create_from(v))
+        state_copy.road.vehicles = [state_copy.vehicle] + simplified_surrounding_vehicles
+
+        return state_copy
+
     def change_vehicles(self, vehicle_class_path: str) -> 'AbstractEnv':
         """
         Change the type of all vehicles on the road

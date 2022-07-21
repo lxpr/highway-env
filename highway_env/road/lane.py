@@ -3,8 +3,7 @@ from typing import Tuple, List, Optional
 import numpy as np
 
 from highway_env import utils
-from highway_env.types import Vector
-from highway_env.utils import wrap_to_pi
+from highway_env.utils import wrap_to_pi, Vector
 
 
 class AbstractLane(object):
@@ -258,51 +257,3 @@ class CircularLane(AbstractLane):
         longitudinal = self.direction*(phi - self.start_phase)*self.radius
         lateral = self.direction*(self.radius - r)
         return longitudinal, lateral
-
-    class OrdinaryLane(AbstractLane):
-        """An ordinary lane defined by a list of points."""
-
-        def __init__(self,
-                     start: Vector,
-                     end: Vector,
-                     width: float = AbstractLane.DEFAULT_WIDTH,
-                     line_types: Tuple[LineType, LineType] = None,
-                     forbidden: bool = False,
-                     speed_limit: float = 20,
-                     priority: int = 0) -> None:
-            """
-            New straight lane.
-
-            :param start: the lane starting position [m]
-            :param end: the lane ending position [m]
-            :param width: the lane width [m]
-            :param line_types: the type of lines on both sides of the lane
-            :param forbidden: is changing to this lane forbidden
-            :param priority: priority level of the lane, for determining who has right of way
-            """
-            self.start = np.array(start)
-            self.end = np.array(end)
-            self.width = width
-            self.heading = np.arctan2(self.end[1] - self.start[1], self.end[0] - self.start[0])
-            self.length = np.linalg.norm(self.end - self.start)
-            self.line_types = line_types or [LineType.STRIPED, LineType.STRIPED]
-            self.direction = (self.end - self.start) / self.length
-            self.direction_lateral = np.array([-self.direction[1], self.direction[0]])
-            self.forbidden = forbidden
-            self.priority = priority
-            self.speed_limit = speed_limit
-
-        def position(self, longitudinal: float, lateral: float) -> np.ndarray:
-            return self.start + longitudinal * self.direction + lateral * self.direction_lateral
-
-        def heading_at(self, longitudinal: float) -> float:
-            return self.heading
-
-        def width_at(self, longitudinal: float) -> float:
-            return self.width
-
-        def local_coordinates(self, position: np.ndarray) -> Tuple[float, float]:
-            delta = position - self.start
-            longitudinal = np.dot(delta, self.direction)
-            lateral = np.dot(delta, self.direction_lateral)
-            return float(longitudinal), float(lateral)
