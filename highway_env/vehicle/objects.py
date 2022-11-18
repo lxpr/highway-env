@@ -30,7 +30,7 @@ class RoadObject(ABC):
         :param speed: cartesian speed of object in the surface
         """
         self.road = road
-        self.position = np.array(position, dtype=np.float)
+        self.position = np.array(position, dtype=np.float64)
         self.heading = heading
         self.speed = speed
         self.lane_index = self.road.network.get_closest_lane_index(self.position, self.heading) if self.road else np.nan
@@ -46,6 +46,7 @@ class RoadObject(ABC):
         # check their collisions.
         self.check_collisions = True
 
+        self.diagonal = np.sqrt(self.LENGTH**2 + self.WIDTH**2)
         self.crashed = False
         self.hit = False
         self.impact = np.zeros(self.position.shape)
@@ -81,8 +82,13 @@ class RoadObject(ABC):
         intersecting, will_intersect, transition = self._is_colliding(other, dt)
         if will_intersect:
             if self.solid and other.solid:
-                self.impact = transition / 2
-                other.impact = -transition / 2
+                if isinstance(other, Obstacle):
+                    self.impact = transition
+                elif isinstance(self, Obstacle):
+                    other.impact = transition
+                else:
+                    self.impact = transition / 2
+                    other.impact = -transition / 2
         if intersecting:
             if self.solid and other.solid:
                 self.crashed = True
@@ -94,7 +100,7 @@ class RoadObject(ABC):
 
     def _is_colliding(self, other, dt):
         # Fast spherical pre-check
-        if np.linalg.norm(other.position - self.position) > self.LENGTH + self.speed * dt:
+        if np.linalg.norm(other.position - self.position) > (self.diagonal + other.diagonal) / 2 + self.speed * dt:
             return False, False, np.zeros(2,)
         # Accurate rectangular check
         return utils.are_polygons_intersecting(self.polygon(), other.polygon(), self.velocity * dt, other.velocity * dt)

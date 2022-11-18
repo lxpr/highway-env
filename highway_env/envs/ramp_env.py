@@ -38,7 +38,7 @@ class RampEnv(AbstractEnv):
             "aggressive_vehicle_type2": "highway_env.vehicle.behavior.VeryAggressiveCar",
             "perc_aggressive": 0, #0.4,
             "initial_lane_id": None,
-            "duration": 2,  # [s]
+            "duration": 60,  # [s]
             "ego_spacing": 2,
             "vehicles_density": 1,
             "collision_reward": -1,    # The reward received when colliding with a vehicle.

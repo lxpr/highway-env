@@ -17,6 +17,7 @@ Observation = np.ndarray
 class HighwayEnv(AbstractEnv):
     """
     A highway driving environment.
+
     The vehicle is driving on a straight highway with several lanes, and is rewarded for reaching a high speed,
     staying on the rightmost lanes and avoiding collisions.
     """

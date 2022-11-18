@@ -1,5 +1,5 @@
 from itertools import repeat, product
-from typing import Tuple
+from typing import Tuple, Dict, Text
 
 from gym.envs.registration import register
 import numpy as np
@@ -38,13 +38,15 @@ class RacetrackEnv(AbstractEnv):
             "action": {
                 "type": "ContinuousAction",
                 "longitudinal": False,
-                "lateral": True
+                "lateral": True,
+                "target_speeds": [0, 5, 10]
             },
             "simulation_frequency": 15,
             "policy_frequency": 5,
             "duration": 300,
             "collision_reward": -1,
             "lane_centering_cost": 4,
+            "lane_centering_reward": 1,
             "action_reward": -0.3,
             "controlled_vehicles": 1,
             "other_vehicles": 1,
@@ -55,18 +57,26 @@ class RacetrackEnv(AbstractEnv):
         return config
 
     def _reward(self, action: np.ndarray) -> float:
-        _, lateral = self.vehicle.lane.local_coordinates(self.vehicle.position)
-        lane_centering_reward = 1/(1+self.config["lane_centering_cost"]*lateral**2)
-        action_reward = self.config["action_reward"]*np.linalg.norm(action)
-        reward = lane_centering_reward \
-            + action_reward \
-            + self.config["collision_reward"] * self.vehicle.crashed
-        reward = reward if self.vehicle.on_road else self.config["collision_reward"]
-        return utils.lmap(reward, [self.config["collision_reward"], 1], [0, 1])
+        rewards = self._rewards(action)
+        reward = sum(self.config.get(name, 0) * reward for name, reward in rewards.items())
+        reward = utils.lmap(reward, [self.config["collision_reward"], 1], [0, 1])
+        reward *= rewards["on_road_reward"]
+        return reward
 
-    def _is_terminal(self) -> bool:
-        """The episode is over when a collision occurs or when the access ramp has been passed."""
-        return self.vehicle.crashed or self.steps >= self.config["duration"]
+    def _rewards(self, action: np.ndarray) -> Dict[Text, float]:
+        _, lateral = self.vehicle.lane.local_coordinates(self.vehicle.position)
+        return {
+            "lane_centering_reward": 1/(1+self.config["lane_centering_cost"]*lateral**2),
+            "action_reward": np.linalg.norm(action),
+            "collision_reward": self.vehicle.crashed,
+            "on_road_reward": self.vehicle.on_road,
+        }
+
+    def _is_terminated(self) -> bool:
+        return self.vehicle.crashed
+
+    def _is_truncated(self) -> bool:
+        return self.time >= self.config["duration"]
 
     def _reset(self) -> None:
         self._make_road()
@@ -182,13 +192,10 @@ class RacetrackEnv(AbstractEnv):
         # Controlled vehicles
         self.controlled_vehicles = []
         for i in range(self.config["controlled_vehicles"]):
-            lane_index = ("a", "b", rng.randint(2)) if i == 0 else \
+            lane_index = ("a", "b", rng.integers(2)) if i == 0 else \
                 self.road.network.random_lane_index(rng)
             controlled_vehicle = self.action_type.vehicle_class.make_on_lane(self.road, lane_index, speed=None,
                                                                              longitudinal=rng.uniform(20, 50))
-            controlled_vehicle.SPEED_MIN = 0
-            controlled_vehicle.SPEED_MAX = 10
-            controlled_vehicle.SPEED_COUNT = 3
 
             self.controlled_vehicles.append(controlled_vehicle)
             self.road.vehicles.append(controlled_vehicle)
@@ -203,7 +210,7 @@ class RacetrackEnv(AbstractEnv):
         self.road.vehicles.append(vehicle)
 
         # Other vehicles
-        for i in range(rng.randint(self.config["other_vehicles"])):
+        for i in range(rng.integers(self.config["other_vehicles"])):
             random_lane_index = self.road.network.random_lane_index(rng)
             vehicle = IDMVehicle.make_on_lane(self.road, random_lane_index,
                                               longitudinal=rng.uniform(

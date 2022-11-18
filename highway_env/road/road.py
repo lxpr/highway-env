@@ -23,6 +23,7 @@ class RoadNetwork(object):
     def add_lane(self, _from: str, _to: str, lane: AbstractLane) -> None:
         """
         A lane is encoded as an edge in the road network.
+
         :param _from: the node at which the lane starts.
         :param _to: the node at which the lane ends.
         :param AbstractLane lane: the lane geometry.
@@ -36,6 +37,7 @@ class RoadNetwork(object):
     def get_lane(self, index: LaneIndex) -> AbstractLane:
         """
         Get the lane geometry corresponding to a given index in the road network.
+
         :param index: a tuple (origin node, destination node, lane id on the road).
         :return: the corresponding lane geometry.
         """
@@ -47,6 +49,7 @@ class RoadNetwork(object):
     def get_closest_lane_index(self, position: np.ndarray, heading: Optional[float] = None) -> LaneIndex:
         """
         Get the index of the lane closest to a world position.
+
         :param position: a world position [m].
         :param heading: a heading angle [rad].
         :return: the index of the closest lane.
@@ -63,6 +66,7 @@ class RoadNetwork(object):
                   np_random: np.random.RandomState = np.random) -> LaneIndex:
         """
         Get the index of the next lane that should be followed after finishing the current lane.
+
         - If a plan is available and matches with current lane, follow it.
         - Else, pick next road randomly.
         - If it has the same number of lanes as current road, stay in the same lane.
@@ -118,6 +122,7 @@ class RoadNetwork(object):
     def bfs_paths(self, start: str, goal: str) -> List[List[str]]:
         """
         Breadth-first search of all routes from start to goal.
+
         :param start: starting node
         :param goal: goal node
         :return: list of paths from start to goal.
@@ -136,6 +141,7 @@ class RoadNetwork(object):
     def shortest_path(self, start: str, goal: str) -> List[str]:
         """
         Breadth-first search of shortest path from start to goal.
+
         :param start: starting node
         :param goal: goal node
         :return: shortest path from start to goal.
@@ -176,6 +182,7 @@ class RoadNetwork(object):
                           same_lane: bool = False, depth: int = 0) -> bool:
         """
         Is the lane 2 leading to a road within lane 1's route?
+
         Vehicles on these lanes must be considered for collisions.
         :param lane_index_1: origin lane
         :param lane_index_2: target lane
@@ -230,6 +237,7 @@ class RoadNetwork(object):
             -> Tuple[np.ndarray, float]:
         """
         Get the absolute position and heading along a route composed of several lanes at some local coordinates.
+
         :param route: a planned route, list of lane indexes
         :param longitudinal: longitudinal position
         :param lateral: : lateral position
@@ -284,6 +292,7 @@ class Road(object):
                  record_history: bool = False) -> None:
         """
         New road.
+
         :param network: the road network describing the lanes
         :param vehicles: the vehicles driving on the road
         :param road_objects: the objects on the road including obstacles and landmarks
@@ -317,6 +326,7 @@ class Road(object):
     def step(self, dt: float) -> None:
         """
         Step the dynamics of each entity on the road.
+
         :param dt: timestep [s]
         """
         for vehicle in self.vehicles:
@@ -331,6 +341,7 @@ class Road(object):
             -> Tuple[Optional['kinematics.Vehicle'], Optional['kinematics.Vehicle']]:
         """
         Find the preceding and following vehicles of a given vehicle.
+
         :param vehicle: the vehicle whose neighbours must be found
         :param lane_index: the lane on which to look for preceding and following vehicles.
                      It doesn't have to be the current vehicle lane but can also be another lane, in which case the

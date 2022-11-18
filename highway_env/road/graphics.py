@@ -38,6 +38,7 @@ class WorldSurface(pygame.Surface):
     def pix(self, length: float) -> int:
         """
         Convert a distance [m] to pixels [px].
+
         :param length: the input distance [m]
         :return: the corresponding size [px]
         """
@@ -46,6 +47,7 @@ class WorldSurface(pygame.Surface):
     def pos2pix(self, x: float, y: float) -> Tuple[int, int]:
         """
         Convert two world coordinates [m] into a position in the surface [px]
+
         :param x: x world coordinate [m]
         :param y: y world coordinate [m]
         :return: the coordinates of the corresponding pixel [px]
@@ -55,6 +57,7 @@ class WorldSurface(pygame.Surface):
     def vec2pix(self, vec: PositionType) -> Tuple[int, int]:
         """
         Convert a world position [m] into a position in the surface [px].
+
         :param vec: a world position [m]
         :return: the coordinates of the corresponding pixel [px]
         """
@@ -73,6 +76,7 @@ class WorldSurface(pygame.Surface):
     def move_display_window_to(self, position: PositionType) -> None:
         """
         Set the origin of the displayed area to center on a given world position.
+
         :param position: a world position [m]
         """
         self.origin = position - np.array(
@@ -82,6 +86,7 @@ class WorldSurface(pygame.Surface):
     def handle_event(self, event: pygame.event.EventType) -> None:
         """
         Handle pygame events for moving and zooming in the displayed area.
+
         :param event: a pygame event
         """
         if event.type == pygame.KEYDOWN:
@@ -113,6 +118,7 @@ class LaneGraphics(object):
     def display(cls, lane: AbstractLane, surface: WorldSurface) -> None:
         """
         Display a lane on a surface.
+
         :param lane: the lane to be displayed
         :param surface: the pygame surface
         """
@@ -132,6 +138,7 @@ class LaneGraphics(object):
                      side: int) -> None:
         """
         Draw a striped line on one side of a lane, on a surface.
+
         :param lane: the lane
         :param surface: the pygame surface
         :param stripes_count: the number of stripes to draw
@@ -148,6 +155,7 @@ class LaneGraphics(object):
                          longitudinal: float, side: int) -> None:
         """
         Draw a striped line on one side of a lane, on a surface.
+
         :param lane: the lane
         :param surface: the pygame surface
         :param stripes_count: the number of stripes to draw
@@ -164,6 +172,7 @@ class LaneGraphics(object):
                         side: int) -> None:
         """
         Draw a continuous line on one side of a lane, on a surface.
+
         :param lane: the lane
         :param surface: the pygame surface
         :param stripes_count: the number of stripes that would be drawn if the line was striped
@@ -180,6 +189,7 @@ class LaneGraphics(object):
                      starts: List[float], ends: List[float], lats: List[float]) -> None:
         """
         Draw a set of stripes along a lane.
+
         :param lane: the lane
         :param surface: the surface to draw on
         :param starts: a list of starting longitudinal positions for each stripe [m]
@@ -220,6 +230,7 @@ class RoadGraphics(object):
     def display(road: Road, surface: WorldSurface) -> None:
         """
         Display the road lanes on a surface.
+
         :param road: the road to be displayed
         :param surface: the pygame surface
         """
@@ -234,6 +245,7 @@ class RoadGraphics(object):
             -> None:
         """
         Display the road vehicles on a surface.
+
         :param road: the road to be displayed
         :param surface: the pygame surface
         :param simulation_frequency: simulation frequency
@@ -249,6 +261,7 @@ class RoadGraphics(object):
     def display_road_objects(road: Road, surface: WorldSurface, offscreen: bool = False) -> None:
         """
         Display the road objects on a surface.
+
         :param road: the road to be displayed
         :param surface: the pygame surface
         :param offscreen: whether the rendering should be done offscreen or not
@@ -273,7 +286,9 @@ class RoadObjectGraphics:
                 offscreen: bool = False):
         """
         Display a road objects on a pygame surface.
+
         The objects is represented as a colored rotated rectangle
+
         :param object_: the vehicle to be drawn
         :param surface: the surface to draw the object on
         :param transparent: whether the object should be drawn slightly transparent
