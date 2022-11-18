@@ -16,24 +16,19 @@ def finite_mdp(env: 'AbstractEnv',
                horizon: float = 10.) -> object:
     """
     Time-To-Collision (TTC) representation of the state.
-
     The state reward is defined from a occupancy grid over different TTCs and lanes. The grid cells encode the
     probability that the ego-vehicle will collide with another vehicle if it is located on a given lane in a given
     duration, under the hypothesis that every vehicles observed will maintain a constant speed (including the
     ego-vehicle) and not change lane (excluding the ego-vehicle).
-
     For instance, in a three-lane road with a vehicle on the left lane with collision predicted in 5s the grid will
     be:
     [0, 0, 0, 0, 1, 0, 0,
      0, 0, 0, 0, 0, 0, 0,
      0, 0, 0, 0, 0, 0, 0]
     The TTC-state is a coordinate (lane, time) within this grid.
-
     If the ego-vehicle has the ability to change its speed, an additional layer is added to the occupancy grid
     to iterate over the different speed choices available.
-
     Finally, this state is flattened for compatibility with the FiniteMDPEnv environment.
-
     :param AbstractEnv env: an environment
     :param time_quantization: the time quantization used in the state representation [s]
     :param horizon: the horizon on which the collisions are predicted [s]
@@ -52,18 +47,20 @@ def finite_mdp(env: 'AbstractEnv',
 
     # Compute reward function
     v, l, t = grid.shape
-    lanes = np.arange(l)/max(l - 1, 1)
-    speeds = np.arange(v)/max(v - 1, 1)
-    
+    lanes = np.arange(l) / max(l - 1, 1)
+    speeds = np.arange(v) / max(v - 1, 1)
+
+    # print("HighSpeedReward:", env.config["high_speed_reward"] * np.tile(speeds[:, np.newaxis, np.newaxis], (1, l, t)))
+
     state_reward = \
         + env.config["collision_reward"] * grid \
         + env.config["right_lane_reward"] * np.tile(lanes[np.newaxis, :, np.newaxis], (v, 1, t)) \
         + env.config["high_speed_reward"] * np.tile(speeds[:, np.newaxis, np.newaxis], (1, l, t))
-    
+
     state_reward = np.ravel(state_reward)
     action_reward = [env.config["lane_change_reward"], 0, env.config["lane_change_reward"], 0, 0]
     reward = np.fromfunction(np.vectorize(lambda s, a: state_reward[s] + action_reward[a]),
-                             (np.size(state_reward), np.size(action_reward)),  dtype=int)
+                             (np.size(state_reward), np.size(action_reward)), dtype=int)
 
     # Compute terminal states
     collision = grid == 1
@@ -86,7 +83,6 @@ def compute_ttc_grid(env: 'AbstractEnv',
                      vehicle: Optional[Vehicle] = None) -> np.ndarray:
     """
     Compute the grid of predicted time-to-collision to each vehicle within the lane
-
     For each ego-speed and lane.
     :param env: environment
     :param time_quantization: time step of a grid cell
@@ -96,7 +92,7 @@ def compute_ttc_grid(env: 'AbstractEnv',
     """
     vehicle = vehicle or env.vehicle
     road_lanes = env.road.network.all_side_lanes(env.vehicle.lane_index)
-    grid = np.zeros((vehicle.SPEED_COUNT, len(road_lanes), int(horizon / time_quantization)))
+    grid = np.zeros((vehicle.target_speeds.size, len(road_lanes), int(horizon / time_quantization)))
     for speed_index in range(grid.shape[0]):
         ego_speed = vehicle.index_to_speed(speed_index)
         for other in env.road.vehicles:
@@ -113,7 +109,8 @@ def compute_ttc_grid(env: 'AbstractEnv',
                 if env.road.network.is_connected_road(vehicle.lane_index, other.lane_index,
                                                       route=vehicle.route, depth=3):
                     # Same road, or connected road with same number of lanes
-                    if len(env.road.network.all_side_lanes(other.lane_index)) == len(env.road.network.all_side_lanes(vehicle.lane_index)):
+                    if len(env.road.network.all_side_lanes(other.lane_index)) == len(
+                            env.road.network.all_side_lanes(vehicle.lane_index)):
                         lane = [other.lane_index[2]]
                     # Different road of different number of lanes: uncertainty on future lane, use all
                     else:
@@ -130,7 +127,6 @@ def compute_ttc_grid(env: 'AbstractEnv',
 def transition_model(h: int, i: int, j: int, a: int, grid: np.ndarray) -> np.ndarray:
     """
     Deterministic transition from a position in the grid to the next.
-
     :param h: speed index
     :param i: lane index
     :param j: time index
@@ -153,7 +149,6 @@ def transition_model(h: int, i: int, j: int, a: int, grid: np.ndarray) -> np.nda
 def clip_position(h: int, i: int, j: int, grid: np.ndarray) -> np.ndarray:
     """
     Clip a position in the TTC grid, so that it stays within bounds.
-
     :param h: speed index
     :param i: lane index
     :param j: time index

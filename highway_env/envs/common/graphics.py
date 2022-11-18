@@ -41,6 +41,7 @@ class EnvViewer(object):
         if os.environ.get("SDL_VIDEODRIVER", None) == "dummy":
             self.enabled = False
 
+        self.observer_vehicle = None
         self.agent_display = None
         self.agent_surface = None
         self.vehicle_trajectory = None
@@ -50,9 +51,7 @@ class EnvViewer(object):
     def set_agent_display(self, agent_display: Callable) -> None:
         """
         Set a display callback provided by an agent
-
         So that they can render their behaviour on a dedicated agent surface, or even on the simulation surface.
-
         :param agent_display: a callback provided by the agent to display on surfaces
         """
         if self.agent_display is None:
@@ -69,10 +68,9 @@ class EnvViewer(object):
     def set_agent_action_sequence(self, actions: List['Action']) -> None:
         """
         Set the sequence of actions chosen by the agent, so that it can be displayed
-
         :param actions: list of action, following the env's action space specification
         """
-        if isinstance(self.env.action_type, DiscreteMetaAction) and actions[0] != "IDM":
+        if isinstance(self.env.action_type, DiscreteMetaAction):
             actions = [self.env.action_type.actions[a] for a in actions]
         if len(actions) > 1:
             self.vehicle_trajectory = self.env.vehicle.predict_trajectory(actions,
@@ -138,7 +136,6 @@ class EnvViewer(object):
     def get_image(self) -> np.ndarray:
         """
         The rendered image as a rgb array.
-
         OpenAI gym's channel convention is H x W x C
         """
         surface = self.screen if self.config["render_agent"] and not self.offscreen else self.sim_surface
@@ -147,7 +144,9 @@ class EnvViewer(object):
 
     def window_position(self) -> np.ndarray:
         """the world position of the center of the displayed window."""
-        if self.env.vehicle:
+        if self.observer_vehicle:
+            return self.observer_vehicle.position
+        elif self.env.vehicle:
             return self.env.vehicle.position
         else:
             return np.array([0, 0])
@@ -162,7 +161,6 @@ class EventHandler(object):
     def handle_event(cls, action_type: ActionType, event: pygame.event.EventType) -> None:
         """
         Map the pygame keyboard events to control decisions
-
         :param action_type: the ActionType that defines how the vehicle is controlled
         :param event: the pygame event
         """

@@ -30,6 +30,10 @@ def lmap_with_limit(v: float, x: Interval, y: Interval) -> float:
     return y[0] + (min(v, x[1]) - x[0]) * (y[1] - y[0]) / (x[1] - x[0])
 
 
+def get_class_path(cls: Callable) -> str:
+    return cls.__module__ + "." + cls.__qualname__
+
+
 def class_from_path(path: str) -> Callable:
     module_name, class_name = path.rsplit(".", 1)
     class_object = getattr(importlib.import_module(module_name), class_name)
@@ -56,7 +60,6 @@ def wrap_to_pi(x: float) -> float:
 def point_in_rectangle(point: Vector, rect_min: Vector, rect_max: Vector) -> bool:
     """
     Check if a point is inside a rectangle
-
     :param point: a point (x, y)
     :param rect_min: x_min, y_min
     :param rect_max: x_max, y_max
@@ -68,7 +71,6 @@ def point_in_rotated_rectangle(point: np.ndarray, center: np.ndarray, length: fl
         -> bool:
     """
     Check if a point is inside a rotated rectangle
-
     :param point: a point
     :param center: rectangle center
     :param length: rectangle length
@@ -85,7 +87,6 @@ def point_in_rotated_rectangle(point: np.ndarray, center: np.ndarray, length: fl
 def point_in_ellipse(point: Vector, center: Vector, angle: float, length: float, width: float) -> bool:
     """
     Check if a point is inside an ellipse
-
     :param point: a point
     :param center: ellipse center
     :param angle: ellipse main axis angle
@@ -103,7 +104,6 @@ def rotated_rectangles_intersect(rect1: Tuple[Vector, float, float, float],
                                  rect2: Tuple[Vector, float, float, float]) -> bool:
     """
     Do two rotated rectangles intersect?
-
     :param rect1: (center, length, width, angle)
     :param rect2: (center, length, width, angle)
     :return: do they?
@@ -111,26 +111,44 @@ def rotated_rectangles_intersect(rect1: Tuple[Vector, float, float, float],
     return has_corner_inside(rect1, rect2) or has_corner_inside(rect2, rect1)
 
 
+def rect_corners(center: np.ndarray, length: float, width: float, angle: float,
+                 include_midpoints: bool = False, include_center: bool = False) -> List[np.ndarray]:
+    """
+    Returns the positions of the corners of a rectangle.
+    :param center: the rectangle center
+    :param length: the rectangle length
+    :param width: the rectangle width
+    :param angle: the rectangle angle
+    :param include_midpoints: include middle of edges
+    :param include_center: include the center of the rect
+    :return: a list of positions
+    """
+    center = np.array(center)
+    half_l = np.array([length/2, 0])
+    half_w = np.array([0, width/2])
+    corners = [- half_l - half_w,
+               - half_l + half_w,
+               + half_l + half_w,
+               + half_l - half_w]
+    if include_center:
+        corners += [[0, 0]]
+    if include_midpoints:
+        corners += [- half_l, half_l, -half_w, half_w]
+
+    c, s = np.cos(angle), np.sin(angle)
+    rotation = np.array([[c, -s], [s, c]])
+    return (rotation @ np.array(corners).T).T + np.tile(center, (len(corners), 1))
+
+
 def has_corner_inside(rect1: Tuple[Vector, float, float, float],
                       rect2: Tuple[Vector, float, float, float]) -> bool:
     """
     Check if rect1 has a corner inside rect2
-
     :param rect1: (center, length, width, angle)
     :param rect2: (center, length, width, angle)
     """
-    (c1, l1, w1, a1) = rect1
-    (c2, l2, w2, a2) = rect2
-    c1 = np.array(c1)
-    l1v = np.array([l1/2, 0])
-    w1v = np.array([0, w1/2])
-    r1_points = np.array([[0, 0],
-                          - l1v, l1v, -w1v, w1v,
-                          - l1v - w1v, - l1v + w1v, + l1v - w1v, + l1v + w1v])
-    c, s = np.cos(a1), np.sin(a1)
-    r = np.array([[c, -s], [s, c]])
-    rotated_r1_points = r.dot(r1_points.transpose()).transpose()
-    return any([point_in_rotated_rectangle(c1+np.squeeze(p), c2, l2, w2, a2) for p in rotated_r1_points])
+    return any([point_in_rotated_rectangle(p1, *rect2)
+                for p1 in rect_corners(*rect1, include_midpoints=True, include_center=True)])
 
 
 def project_polygon(polygon: Vector, axis: Vector) -> Tuple[float, float]:
@@ -157,9 +175,7 @@ def are_polygons_intersecting(a: Vector, b: Vector,
         -> Tuple[bool, bool, Optional[np.ndarray]]:
     """
     Checks if the two polygons are intersecting.
-
     See https://www.codeproject.com/Articles/15573/2D-Polygon-Collision-Detection
-
     :param a: polygon A, as a list of [x, y] points
     :param b: polygon B, as a list of [x, y] points
     :param displacement_a: velocity of the polygon A
@@ -204,7 +220,6 @@ def confidence_ellipsoid(data: Dict[str, np.ndarray], lambda_: float = 1e-5, del
                          param_bound: float = 1.0) -> Tuple[np.ndarray, np.ndarray, float]:
     """
     Compute a confidence ellipsoid over the parameter theta, where y = theta^T phi
-
     :param data: a dictionary {"features": [phi_0,...,phi_N], "outputs": [y_0,...,y_N]}
     :param lambda_: l2 regularization parameter
     :param delta: confidence level
@@ -225,7 +240,6 @@ def confidence_ellipsoid(data: Dict[str, np.ndarray], lambda_: float = 1e-5, del
 def confidence_polytope(data: dict, parameter_box: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """
     Compute a confidence polytope over the parameter theta, where y = theta^T phi
-
     :param data: a dictionary {"features": [phi_0,...,phi_N], "outputs": [y_0,...,y_N]}
     :param parameter_box: a box [theta_min, theta_max]  containing the parameter theta
     :return: estimated theta, polytope vertices, Gramian matrix G_N_lambda, radius beta_N
@@ -249,7 +263,6 @@ def is_valid_observation(y: np.ndarray, phi: np.ndarray, theta: np.ndarray, gram
                          beta: float, sigma: float = 0.1) -> bool:
     """
     Check if a new observation (phi, y) is valid according to a confidence ellipsoid on theta.
-
     :param y: observation
     :param phi: feature
     :param theta: estimated parameter
@@ -269,9 +282,7 @@ def is_valid_observation(y: np.ndarray, phi: np.ndarray, theta: np.ndarray, gram
 def is_consistent_dataset(data: dict, parameter_box: np.ndarray = None) -> bool:
     """
     Check whether a dataset {phi_n, y_n} is consistent
-
     The last observation should be in the confidence ellipsoid obtained by the N-1 first observations.
-
     :param data: a dictionary {"features": [phi_0,...,phi_N], "outputs": [y_0,...,y_N]}
     :param parameter_box: a box [theta_min, theta_max]  containing the parameter theta
     :return: consistency of the dataset
@@ -289,7 +300,6 @@ def is_consistent_dataset(data: dict, parameter_box: np.ndarray = None) -> bool:
 def near_split(x, num_bins=None, size_bins=None):
     """
     Split a number into several bins with near-even distribution.
-
     You can either set the number of bins, or their size.
     The sum of bins always equals the total.
     :param x: number to split
@@ -317,6 +327,33 @@ def distance_to_circle(center, radius, direction):
     else:
         distance = np.infty
     return distance
+
+
+def distance_to_rect(line: Tuple[np.ndarray, np.ndarray], rect: List[np.ndarray]):
+    """
+    Compute the intersection between a line segment and a rectangle.
+    See https://math.stackexchange.com/a/2788041.
+    :param line: a line segment [R, Q]
+    :param rect: a rectangle [A, B, C, D]
+    :return: the distance between R and the intersection of the segment RQ with the rectangle ABCD
+    """
+    r, q = line
+    a, b, c, d = rect
+    u = b - a
+    v = d - a
+    u, v = u/np.linalg.norm(u), v/np.linalg.norm(v)
+    rqu = (q - r) @ u
+    rqv = (q - r) @ v
+    interval_1 = [(a - r) @ u / rqu, (b - r) @ u / rqu]
+    interval_2 = [(a - r) @ v / rqv, (d - r) @ v / rqv]
+    interval_1 = interval_1 if rqu >= 0 else list(reversed(interval_1))
+    interval_2 = interval_2 if rqv >= 0 else list(reversed(interval_2))
+    if interval_distance(*interval_1, *interval_2) <= 0 \
+            and interval_distance(0, 1, *interval_1) <= 0 \
+            and interval_distance(0, 1, *interval_2) <= 0:
+        return max(interval_1[0], interval_2[0]) * np.linalg.norm(q - r)
+    else:
+        return np.inf
 
 
 def solve_trinom(a, b, c):

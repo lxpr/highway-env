@@ -1,4 +1,4 @@
-from typing import Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import numpy as np
 import copy
@@ -24,7 +24,7 @@ class IDMVehicle(ControlledVehicle):
     ACC_MAX = 6.0  # [m/s2]
     """Maximum acceleration."""
 
-    STEERING_MIN_ACC = 1.5 # [m/s2]
+    STEERING_MIN_ACC = 0.5 # [m/s2]
     """Minimum starting acceleration."""
 
     STEERING_MIN_SPEED = 0.2  # [m/s]
@@ -502,7 +502,7 @@ class AggressiveCar(ControlledVehicle):
 
     # Longitudinal policy parameters
     ACC_MAX = 9.0  # [m/s2]
-    STEERING_MIN_ACC = 1.5 # [m/s2]
+    STEERING_MIN_ACC = 0.5 # [m/s2]
     """Minimum starting acceleration."""
 
     STEERING_MIN_SPEED = 0.2  # [m/s]
@@ -791,7 +791,7 @@ class VeryAggressiveCar(ControlledVehicle):
 
     # Longitudinal policy parameters
     ACC_MAX = 10.0  # [m/s2]
-    STEERING_MIN_ACC = 1.5 # [m/s2]
+    STEERING_MIN_ACC = 0.5 # [m/s2]
     """Minimum starting acceleration."""
 
     STEERING_MIN_SPEED = 0.2  # [m/s]
@@ -1082,7 +1082,7 @@ class IDMSimulateVehicle(ControlledVehicle):
     ACC_MAX = 6.0  # [m/s2]
     """Maximum acceleration."""
 
-    STEERING_MIN_ACC = 1.5 # [m/s2]
+    STEERING_MIN_ACC = 0.5 # [m/s2]
     """Minimum starting acceleration."""
 
     STEERING_MIN_SPEED = 0.2  # [m/s]
@@ -1332,24 +1332,41 @@ class MDPIDMVehicle(ControlledVehicle):
 
     """A controlled vehicle with a specified discrete range of allowed target speeds that can follow IDM traj."""
 
-    SPEED_COUNT: int = 3  # []
-    SPEED_MIN: float = 20  # [m/s]
-    SPEED_MAX: float = 30  # [m/s]
-    STEERING_MIN_ACC = 1.5 # [m/s2]
+
+    # SPEED_COUNT: int = 3  # []
+    # SPEED_MIN: float = 20  # [m/s]
+    # SPEED_MAX: float = 30  # [m/s]
+    STEERING_MIN_ACC = 0.5 # [m/s2]
     """Minimum starting acceleration."""
 
     STEERING_MIN_SPEED = 0.2  # [m/s]
     """Minimum starting speed."""
+
+    """A controlled vehicle with a specified discrete range of allowed target speeds."""
+    DEFAULT_TARGET_SPEEDS = np.linspace(20, 30, 3)
 
     def __init__(self,
                  road: Road,
                  position: List[float],
                  heading: float = 0,
                  speed: float = 0,
-                 target_lane_index: LaneIndex = None,
-                 target_speed: float = None,
-                 route: Route = None) -> None:
+                 target_lane_index: Optional[LaneIndex] = None,
+                 target_speed: Optional[float] = None,
+                 target_speeds: Optional[Vector] = None,
+                 route: Optional[Route] = None) -> None:
+        """
+        Initializes an MDPVehicle
+        :param road: the road on which the vehicle is driving
+        :param position: its position
+        :param heading: its heading angle
+        :param speed: its speed
+        :param target_lane_index: the index of the lane it is following
+        :param target_speed: the speed it is tracking
+        :param target_speeds: the discrete list of speeds the vehicle is able to track, through faster/slower actions
+        :param route: the planned route of the vehicle, to handle intersections
+        """
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route)
+        self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
         self.target_speed = self.index_to_speed(self.speed_index)
         self.IDM_flag = False
@@ -1361,8 +1378,6 @@ class MDPIDMVehicle(ControlledVehicle):
         - then, perform longitudinal and lateral control.
         :param action: a high-level action
         """
-
-        minimum_steering_speed = 2
         
         if self.IDM_flag == True:
             if self.crashed:
@@ -1390,8 +1405,6 @@ class MDPIDMVehicle(ControlledVehicle):
                                                             rear_vehicle=rear_vehicle)
                 action['acceleration'] = min(action['acceleration'], target_idm_acceleration)
             # action['acceleration'] = self.recover_from_stop(action['acceleration'])
-            if abs(action['steering']) > 0.01 and self.speed < self.STEERING_MIN_SPEED:
-                action['acceleration'] = max(action['acceleration'], self.STEERING_MIN_ACC)
             action['acceleration'] = np.clip(action['acceleration'], -idm_ego.ACC_MAX, idm_ego.ACC_MAX)
             Vehicle.act(self, action)  # Skip ControlledVehicle.act(), or the command will be overriden.
             return
@@ -1417,8 +1430,8 @@ class MDPIDMVehicle(ControlledVehicle):
         action = {"steering": self.steering_control(self.target_lane_index),
                   "acceleration": self.speed_control(self.target_speed)}
         action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
-        if abs(action['steering']) > 0 and self.target_speed < minimum_steering_speed:
-            self.target_speed = minimum_steering_speed
+        if abs(action['steering']) > 0 and self.target_speed < self.STEERING_MIN_SPEED:
+            self.target_speed = self.STEERING_MIN_SPEED
             action["acceleration"] = self.speed_control(self.target_speed)
         # if print_flag:
         #     print("steering", action["steering"])
@@ -1428,35 +1441,32 @@ class MDPIDMVehicle(ControlledVehicle):
     def index_to_speed(self, index: int) -> float:
         """
         Convert an index among allowed speeds to its corresponding speed
-
         :param index: the speed index []
         :return: the corresponding speed [m/s]
         """
-        if self.SPEED_COUNT > 1:
-            return self.SPEED_MIN + index * (self.SPEED_MAX - self.SPEED_MIN) / (self.SPEED_COUNT - 1)
-        else:
-            return self.SPEED_MIN
+        return self.target_speeds[index]
 
     def speed_to_index(self, speed: float) -> int:
         """
         Find the index of the closest speed allowed to a given speed.
-
+        Assumes a uniform list of target speeds to avoid searching for the closest target speed
         :param speed: an input speed [m/s]
         :return: the index of the closest speed allowed []
         """
-        x = (speed - self.SPEED_MIN) / (self.SPEED_MAX - self.SPEED_MIN)
-        return np.int(np.clip(np.round(x * (self.SPEED_COUNT - 1)), 0, self.SPEED_COUNT - 1))
+        x = (speed - self.target_speeds[0]) / (self.target_speeds[-1] - self.target_speeds[0])
+        return np.int64(np.clip(np.round(x * (self.target_speeds.size - 1)), 0, self.target_speeds.size - 1))
 
     @classmethod
     def speed_to_index_default(cls, speed: float) -> int:
         """
         Find the index of the closest speed allowed to a given speed.
-
+        Assumes a uniform list of target speeds to avoid searching for the closest target speed
         :param speed: an input speed [m/s]
         :return: the index of the closest speed allowed []
         """
-        x = (speed - cls.SPEED_MIN) / (cls.SPEED_MAX - cls.SPEED_MIN)
-        return np.int(np.clip(np.round(x * (cls.SPEED_COUNT - 1)), 0, cls.SPEED_COUNT - 1))
+        x = (speed - cls.DEFAULT_TARGET_SPEEDS[0]) / (cls.DEFAULT_TARGET_SPEEDS[-1] - cls.DEFAULT_TARGET_SPEEDS[0])
+        return np.int(np.clip(
+            np.round(x * (cls.DEFAULT_TARGET_SPEEDS.size - 1)), 0, cls.DEFAULT_TARGET_SPEEDS.size - 1))
 
     @classmethod
     def get_speed_index(cls, vehicle: Vehicle) -> int:
@@ -1466,7 +1476,6 @@ class MDPIDMVehicle(ControlledVehicle):
             -> List[ControlledVehicle]:
         """
         Predict the future trajectory of the vehicle given a sequence of actions.
-
         :param actions: a sequence of future actions.
         :param action_duration: the duration of each action.
         :param trajectory_timestep: the duration between each save of the vehicle state.

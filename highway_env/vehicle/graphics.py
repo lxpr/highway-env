@@ -8,7 +8,7 @@ from highway_env.utils import Vector
 from highway_env.vehicle.dynamics import BicycleVehicle
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.vehicle.controller import ControlledVehicle, MDPVehicle
-from highway_env.vehicle.behavior import IDMVehicle, LinearVehicle, AggressiveCar, VeryAggressiveCar
+from highway_env.vehicle.behavior import IDMVehicle, LinearVehicle
 
 if TYPE_CHECKING:
     from highway_env.road.graphics import WorldSurface
@@ -32,9 +32,7 @@ class VehicleGraphics(object):
                 draw_roof: bool = False) -> None:
         """
         Display a vehicle on a pygame surface.
-
         The vehicle is represented as a colored rotated rectangle.
-
         :param vehicle: the vehicle to be drawn
         :param surface: the surface to draw the vehicle on
         :param transparent: whether the vehicle should be drawn slightly transparent
@@ -138,7 +136,6 @@ class VehicleGraphics(object):
     def display_trajectory(cls, states: List[Vehicle], surface: "WorldSurface", offscreen: bool = False) -> None:
         """
         Display the whole trajectory of a vehicle on a pygame surface.
-
         :param states: the list of vehicle states within the trajectory to be displayed
         :param surface: the surface to draw the vehicle future states on
         :param offscreen: whether the rendering should be done offscreen or not
@@ -151,7 +148,6 @@ class VehicleGraphics(object):
                         simulation: int = 15, offscreen: bool = False) -> None:
         """
         Display the whole trajectory of a vehicle on a pygame surface.
-
         :param vehicle: the vehicle states within the trajectory to be displayed
         :param surface: the surface to draw the vehicle future states on
         :param frequency: frequency of displayed positions in history
@@ -171,13 +167,11 @@ class VehicleGraphics(object):
         if getattr(vehicle, "color", None):
             color = vehicle.color
         elif vehicle.crashed:
-            color = cls.PURPLE
+            color = cls.RED
         elif isinstance(vehicle, LinearVehicle):
             color = cls.YELLOW
         elif isinstance(vehicle, IDMVehicle):
             color = cls.BLUE
-        elif isinstance(vehicle, AggressiveCar) or isinstance(vehicle, VeryAggressiveCar):
-            color = cls.RED
         elif isinstance(vehicle, MDPVehicle):
             color = cls.EGO_COLOR
         if transparent:

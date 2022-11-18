@@ -31,14 +31,14 @@ class RampEnv(AbstractEnv):
                 "type": "DiscreteMetaAction",
             },
             "lanes_count": 2,
-            "vehicles_count": 120,
+            "vehicles_count": 120, #120,
             "controlled_vehicles": 1,
             "other_vehicles_type": "highway_env.vehicle.behavior.IDMVehicle",
             "aggressive_vehicle_type": "highway_env.vehicle.behavior.AggressiveCar",
             "aggressive_vehicle_type2": "highway_env.vehicle.behavior.VeryAggressiveCar",
             "perc_aggressive": 0, #0.4,
             "initial_lane_id": None,
-            "duration": 60,  # [s]
+            "duration": 2,  # [s]
             "ego_spacing": 2,
             "vehicles_density": 1,
             "collision_reward": -1,    # The reward received when colliding with a vehicle.
@@ -170,28 +170,35 @@ class RampEnv(AbstractEnv):
                         random_lane_index = self.road.network.random_lane_index(rng)
                         b = np.random.randint(low=1, high=others)
                         if b < num_aggressive:
-                            a = np.random.randint(low=1, high=5)
-                            if a < 3:
-                                vehicle = aggro_type2.make_on_lane(self.road, random_lane_index,
-                                                          longitudinal=rng.uniform(
-                                                              low=0,
-                                                              high=self.road.network.get_lane(random_lane_index).length
-                                                          ),
-                                                          speed=20 + rng.uniform(high=10))
-                            else:
-                                vehicle = aggro_type1.make_on_lane(self.road, random_lane_index,
-                                                          longitudinal=rng.uniform(
-                                                              low=0,
-                                                              high=self.road.network.get_lane(random_lane_index).length
-                                                          ),
-                                                          speed=20 + rng.uniform(high=10))
+                            vehicle = aggro_type1.make_on_lane(self.road, random_lane_index,
+                                                               longitudinal=rng.uniform(
+                                                                   low=0,
+                                                                   high=self.road.network.get_lane(
+                                                                       random_lane_index).length
+                                                               ),
+                                                               speed=20 + rng.uniform(high=10))
+                            # a = np.random.randint(low=1, high=5)
+                            # if a < 3:
+                            #     vehicle = aggro_type2.make_on_lane(self.road, random_lane_index,
+                            #                               longitudinal=rng.uniform(
+                            #                                   low=0,
+                            #                                   high=self.road.network.get_lane(random_lane_index).length
+                            #                               ),
+                            #                               speed=20 + rng.uniform(high=10))
+                            # else:
+                            #     vehicle = aggro_type1.make_on_lane(self.road, random_lane_index,
+                            #                               longitudinal=rng.uniform(
+                            #                                   low=0,
+                            #                                   high=self.road.network.get_lane(random_lane_index).length
+                            #                               ),
+                            #                               speed=20 + rng.uniform(high=10))
                         else:
                             vehicle = other_vehicles_type.make_on_lane(self.road, random_lane_index,
                                                           longitudinal=rng.uniform(
                                                               low=0,
                                                               high=self.road.network.get_lane(random_lane_index).length
                                                           ),
-                                                          speed=20 + rng.uniform(high=10))
+                                                          speed= 20 + rng.uniform(high=10))
                             # vehicle.randomize_behavior()
                         for v in self.road.vehicles:
                             if np.linalg.norm(vehicle.position - v.position) < 15:
@@ -319,11 +326,12 @@ class RampEnv(AbstractEnv):
         #                 self.vehicle.speed > 2))
         return reward
 
-    def _is_terminal(self) -> bool:
-        """The episode is over if the ego vehicle crashed or the time is out."""
-        return self.vehicle.crashed or \
-            self.steps >= self.config["duration"] or \
-            (self.config["offroad_terminal"] and not self.vehicle.on_road)
+    def _is_terminated(self) -> bool:
+        """The episode is over when a collision occurs or when the access ramp has been passed."""
+        return self.vehicle.crashed
+
+    def _is_truncated(self) -> bool:
+        return self.time >= self.config["duration"]
 
     def _cost(self, action: int) -> float:
         """The cost signal is the occurrence of collision."""
