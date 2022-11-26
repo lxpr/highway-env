@@ -11,10 +11,11 @@ if TYPE_CHECKING:
     from highway_env.envs import AbstractEnv
 
 
-def finite_mdp(env: 'AbstractEnv',
+def finite_mdp_modified(env: 'AbstractEnv',
                time_quantization: float = 1.,
                horizon: float = 10.) -> object:
     """
+    Added another grid with literally time to collision as values
     Time-To-Collision (TTC) representation of the state.
     The state reward is defined from a occupancy grid over different TTCs and lanes. The grid cells encode the
     probability that the ego-vehicle will collide with another vehicle if it is located on a given lane in a given
@@ -34,7 +35,7 @@ def finite_mdp(env: 'AbstractEnv',
     :param horizon: the horizon on which the collisions are predicted [s]
     """
     # Compute TTC grid
-    grid = compute_ttc_grid(env, time_quantization, horizon)
+    grid, grid_ttc = compute_ttc_grid_modified(env, time_quantization, horizon)
 
     # Compute current state
     grid_state = (env.vehicle.speed_index, env.vehicle.lane_index[2], 0)
@@ -50,6 +51,11 @@ def finite_mdp(env: 'AbstractEnv',
     lanes = np.arange(l) / max(l - 1, 1)
     speeds = np.arange(v) / max(v - 1, 1)
 
+    current_speed = env.vehicle.speed
+    scaled_speeds = np.array([utils.lmap_with_limit(current_speed - env.vehicle.DELTA_SPEED, env.config["reward_speed_range"], [0, 1]),
+                     utils.lmap_with_limit(current_speed, env.config["reward_speed_range"], [0, 1]),
+                     utils.lmap_with_limit(current_speed + env.vehicle.DELTA_SPEED, env.config["reward_speed_range"], [0, 1])])
+
     # state_reward = \
     #     + env.config["collision_reward"] * grid \
     #     + env.config["right_lane_reward"] * np.tile(lanes[np.newaxis, :, np.newaxis], (v, 1, t)) \
@@ -58,13 +64,16 @@ def finite_mdp(env: 'AbstractEnv',
     state_reward = \
         + env.config["collision_reward"] * grid \
         + env.config["right_lane_reward"] * np.tile(lanes[np.newaxis, :, np.newaxis], (v, 1, t)) \
-        + env.config["high_speed_reward"] * np.tile(speeds[:, np.newaxis, np.newaxis], (1, l, t))
+        + env.config["high_speed_reward"] * np.tile(scaled_speeds[:, np.newaxis, np.newaxis], (1, l, t))
 
 
+    state_reward += env.config["time_to_collision_reward"] * np.exp(-grid_ttc)
     state_reward = np.ravel(state_reward)
     action_reward = [env.config["lane_change_reward"], 0, env.config["lane_change_reward"], 0, 0]
     reward = np.fromfunction(np.vectorize(lambda s, a: state_reward[s] + action_reward[a]),
                              (np.size(state_reward), np.size(action_reward)), dtype=int)
+    # print(env.config["collision_reward"], env.config["right_lane_reward"], env.config["high_speed_reward"])
+    # print("reward:", reward)
 
     # Compute terminal states
     collision = grid == 1
@@ -81,7 +90,7 @@ def finite_mdp(env: 'AbstractEnv',
         raise ModuleNotFoundError("The finite_mdp module is required for conversion. {}".format(e))
 
 
-def compute_ttc_grid(env: 'AbstractEnv',
+def compute_ttc_grid_modified(env: 'AbstractEnv',
                      time_quantization: float,
                      horizon: float,
                      vehicle: Optional[Vehicle] = None) -> np.ndarray:
@@ -94,9 +103,12 @@ def compute_ttc_grid(env: 'AbstractEnv',
     :param vehicle: the observer vehicle
     :return: the time-co-collision grid, with axes SPEED x LANES x TIME
     """
+    extra_margin = 4
+
     vehicle = vehicle or env.vehicle
     road_lanes = env.road.network.all_side_lanes(env.vehicle.lane_index)
     grid = np.zeros((vehicle.target_speeds.size, len(road_lanes), int(horizon / time_quantization)))
+    grid_ttc = 1000 * np.ones((vehicle.target_speeds.size, len(road_lanes), int(horizon / time_quantization)))
     for speed_index in range(grid.shape[0]):
         ego_speed = vehicle.index_to_speed(speed_index)
         for other in env.road.vehicles:
@@ -108,6 +120,8 @@ def compute_ttc_grid(env: 'AbstractEnv',
                 distance = vehicle.lane_distance_to(other) + m
                 other_projected_speed = other.speed * np.dot(other.direction, vehicle.direction)
                 time_to_collision = distance / utils.not_zero(ego_speed - other_projected_speed)
+                if abs(distance) < margin:
+                    time_to_collision = 1
                 if time_to_collision < 0:
                     continue
                 if env.road.network.is_connected_road(vehicle.lane_index, other.lane_index,
@@ -120,12 +134,18 @@ def compute_ttc_grid(env: 'AbstractEnv',
                     else:
                         lane = range(grid.shape[1])
                     # Quantize time-to-collision to both upper and lower values
-                    for time in [int(time_to_collision / time_quantization),
+                    for time in [int(time_to_collision / time_quantization) - 1,
                                  int(np.ceil(time_to_collision / time_quantization))]:
                         if 0 <= time < grid.shape[2]:
                             # TODO: check lane overflow (e.g. vehicle with higher lane id than current road capacity)
                             grid[speed_index, lane, time] = np.maximum(grid[speed_index, lane, time], cost)
-    return grid
+
+                    for time in range(0, int(time_to_collision / time_quantization)):
+                        if 0 <= time < grid_ttc.shape[2]:
+                            # TODO: check lane overflow (e.g. vehicle with higher lane id than current road capacity)
+                            grid_ttc[speed_index, lane, time] = np.minimum(grid_ttc[speed_index, lane, time], int(time_to_collision / time_quantization) - time)
+
+    return grid, grid_ttc
 
 
 def transition_model(h: int, i: int, j: int, a: int, grid: np.ndarray) -> np.ndarray:

@@ -11,6 +11,7 @@ from highway_env import utils
 from highway_env.envs.common.action import action_factory, Action, DiscreteMetaAction, ActionType
 from highway_env.envs.common.observation import observation_factory, ObservationType
 from highway_env.envs.common.finite_mdp import finite_mdp
+from highway_env.envs.common.finite_mdp_modified import finite_mdp_modified
 from highway_env.envs.common.graphics import EnvViewer
 from highway_env.vehicle.behavior import IDMVehicle, LinearVehicle, IDMSimulateVehicle
 from highway_env.vehicle.controller import MDPVehicle
@@ -394,7 +395,8 @@ class AbstractEnv(gym.Env):
         return env_copy
 
     def to_finite_mdp(self):
-        return finite_mdp(self, time_quantization=1 / self.config["policy_frequency"])
+        # return finite_mdp(self, time_quantization=1 / self.config["policy_frequency"])
+        return finite_mdp_modified(self, time_quantization=1 / self.config["policy_frequency"])
 
     def __deepcopy__(self, memo):
         """Perform a deep copy but without copying the environment viewer."""
