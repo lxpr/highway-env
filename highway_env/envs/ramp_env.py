@@ -6,7 +6,7 @@ from highway_env.envs.common.abstract import AbstractEnv
 from highway_env.envs.common.action import Action
 from highway_env.road.road import Road, RoadNetwork
 from highway_env.utils import near_split
-from highway_env.vehicle.controller import ControlledVehicle
+from highway_env.vehicle.controller import ControlledVehicle, MDPVehicle
 from highway_env.road.lane import LineType, StraightLane, CircularLane, SineLane
 from highway_env.vehicle.objects import Obstacle
 from highway_env.vehicle.behavior import MDPIDMVehicle
@@ -49,7 +49,8 @@ class RampEnv(AbstractEnv):
             "lane_change_reward": -0.1,# The reward received at each lane change action.
             "stop_reward": 0,       # The reward received when speed is 0
             "min_distance_reward": -1, # A coefficent for exponential penalty according to the distance to the closest vehicle
-            "reward_speed_range": [0, 25],
+            "reward_speed_range": [0, 30],
+            "time_to_collision_reward": -1,
             "offroad_terminal": True
         })
         return config
@@ -149,9 +150,15 @@ class RampEnv(AbstractEnv):
             #     spacing=self.config["ego_spacing"]
             # )
             while True:
-                controlled_vehicle = MDPIDMVehicle.create_random(
+                # controlled_vehicle = MDPIDMVehicle.create_random(
+                #     self.road,
+                #     speed=10 + rng.uniform(high=15),
+                #     lane_id=self.config["initial_lane_id"],
+                #     spacing=self.config["ego_spacing"]
+                # )
+                controlled_vehicle = MDPVehicle.create_random(
                     self.road,
-                    speed=10 + rng.uniform(high=15),
+                    speed=20 + rng.uniform(high=10),
                     lane_id=self.config["initial_lane_id"],
                     spacing=self.config["ego_spacing"]
                 )
@@ -216,7 +223,7 @@ class RampEnv(AbstractEnv):
                                                               low=0,
                                                               high=self.road.network.get_lane(random_lane_index).length
                                                           ),
-                                                          speed=10 + rng.uniform(high=15))
+                                                          speed= 10 + rng.uniform(high=15))
                         # Prevent early collisions
                         for v in self.road.vehicles:
                             if np.linalg.norm(vehicle.position - v.position) < 20:
