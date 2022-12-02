@@ -1343,7 +1343,7 @@ class MDPIDMVehicle(ControlledVehicle):
     """Minimum starting speed."""
 
     """A controlled vehicle with a specified discrete range of allowed target speeds."""
-    DEFAULT_TARGET_SPEEDS = np.linspace(20, 30, 3)
+    DEFAULT_TARGET_SPEEDS = np.linspace(0, 30, 3)
 
     def __init__(self,
                  road: Road,
@@ -1411,9 +1411,9 @@ class MDPIDMVehicle(ControlledVehicle):
         self.follow_road()
         print_flag = False
         if action == "FASTER":
-            self.target_speed += self.DELTA_SPEED
+            self.speed_index = self.speed_to_index(self.speed) + 1
         elif action == "SLOWER":
-            self.target_speed -= self.DELTA_SPEED
+            self.speed_index = self.speed_to_index(self.speed) - 1
         elif action == "LANE_RIGHT":
             _from, _to, _id = self.target_lane_index
             target_lane_index = _from, _to, np.clip(_id + 1, 0, len(self.road.network.graph[_from][_to]) - 1)
