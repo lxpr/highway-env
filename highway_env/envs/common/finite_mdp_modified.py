@@ -67,7 +67,7 @@ def finite_mdp_modified(env: 'AbstractEnv',
         + env.config["high_speed_reward"] * np.tile(scaled_speeds[:, np.newaxis, np.newaxis], (1, l, t))
 
 
-    state_reward += env.config["time_to_collision_reward"] * np.exp(-grid_ttc)
+    # state_reward += env.config["time_to_collision_reward"] * np.exp(-grid_ttc)
     state_reward = np.ravel(state_reward)
     action_reward = [env.config["lane_change_reward"], 0, env.config["lane_change_reward"], 0, 0]
     reward = np.fromfunction(np.vectorize(lambda s, a: state_reward[s] + action_reward[a]),
@@ -85,6 +85,7 @@ def finite_mdp_modified(env: 'AbstractEnv',
         module = importlib.import_module("finite_mdp.mdp")
         mdp = module.DeterministicMDP(transition, reward, terminal, state=state)
         mdp.original_shape = grid.shape
+        mdp.ttc = np.ravel(grid_ttc)
         return mdp
     except ModuleNotFoundError as e:
         raise ModuleNotFoundError("The finite_mdp module is required for conversion. {}".format(e))
@@ -126,9 +127,13 @@ def compute_ttc_grid_modified(env: 'AbstractEnv',
                     if len(env.road.network.all_side_lanes(obstacle.lane_index)) == len(
                             env.road.network.all_side_lanes(vehicle.lane_index)):
                         lane = [obstacle.lane_index[2]]
-                    # Different road of different number of lanes: uncertainty on future lane, use all
+                    # # Different road of different number of lanes: uncertainty on future lane, use all
+                    # else:
+                    #     lane = range(grid.shape[1])
+                    # Different road of different number of lanes: uncertainty on future lane
                     else:
-                        lane = range(grid.shape[1])
+                        lane = [min(obstacle.lane_index[2], grid.shape[1] - 1)]
+
                     # Quantize time-to-collision to both upper and lower values
                     for time in [int(time_to_collision / time_quantization) - 1,
                                  int(np.ceil(time_to_collision / time_quantization))]:
@@ -160,9 +165,23 @@ def compute_ttc_grid_modified(env: 'AbstractEnv',
                     if len(env.road.network.all_side_lanes(other.lane_index)) == len(
                             env.road.network.all_side_lanes(vehicle.lane_index)):
                         lane = [other.lane_index[2]]
-                    # Different road of different number of lanes: uncertainty on future lane, use all
+                    # # Different road of different number of lanes: uncertainty on future lane, use all
+                    # else:
+                    #     lane = range(grid.shape[1])
+                    # Different road of different number of lanes: uncertainty on future lane
+                    elif len(env.road.network.all_side_lanes(other.lane_index)) > 2 * len(
+                            env.road.network.all_side_lanes(vehicle.lane_index)):
+                        lane = [max(min(other.lane_index[2] - len(env.road.network.all_side_lanes(other.lane_index)) + len(
+                            env.road.network.all_side_lanes(vehicle.lane_index)), grid.shape[1] - 1), 0)]
+                    elif len(env.road.network.all_side_lanes(other.lane_index)) > len(
+                            env.road.network.all_side_lanes(vehicle.lane_index)):
+                        lane = [min(other.lane_index[2], grid.shape[1] - 1)]
+                    elif len(env.road.network.all_side_lanes(vehicle.lane_index)) > 2 * len(env.road.network.all_side_lanes(other.lane_index)):
+                        lane = [min(other.lane_index[2] - len(env.road.network.all_side_lanes(other.lane_index)) + len(
+                            env.road.network.all_side_lanes(vehicle.lane_index)), grid.shape[1] - 1)]
                     else:
-                        lane = range(grid.shape[1])
+                        lane = [min(other.lane_index[2], grid.shape[1] - 1)]
+
                     # Quantize time-to-collision to both upper and lower values
                     for time in [int(time_to_collision / time_quantization) - 1,
                                  int(np.ceil(time_to_collision / time_quantization))]:

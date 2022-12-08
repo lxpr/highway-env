@@ -28,8 +28,9 @@ class MergeEnv(AbstractEnv):
             "collision_reward": -1,
             "right_lane_reward": 0.1,
             "high_speed_reward": 0.2,
-            "merging_speed_reward": -0.5,
+            "merging_speed_reward": 0, #-0.5,
             "lane_change_reward": -0.05,
+            "reward_speed_range": [0, 30]
         })
         return cfg
 

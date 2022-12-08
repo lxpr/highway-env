@@ -48,9 +48,9 @@ class RampEnv(AbstractEnv):
                                        # lower speeds according to config["reward_speed_range"].
             "lane_change_reward": -0.1,# The reward received at each lane change action.
             "stop_reward": 0,       # The reward received when speed is 0
-            "min_distance_reward": -1, # A coefficent for exponential penalty according to the distance to the closest vehicle
+            "min_distance_reward": 0, #-1, # A coefficent for exponential penalty according to the distance to the closest vehicle
             "reward_speed_range": [0, 30],
-            "time_to_collision_reward": -1,
+            "time_to_collision_reward": 0, #-1,
             "offroad_terminal": True
         })
         return config

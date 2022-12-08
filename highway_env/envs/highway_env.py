@@ -33,7 +33,7 @@ class HighwayEnv(AbstractEnv):
                 "type": "DiscreteMetaAction",
             },
             "lanes_count": 4,
-            "vehicles_count": 50,
+            "vehicles_count": 100,
             "controlled_vehicles": 1,
             "initial_lane_id": None,
             "duration": 40,  # [s]
@@ -46,7 +46,7 @@ class HighwayEnv(AbstractEnv):
                                        # lower speeds according to config["reward_speed_range"].
             "lane_change_reward": -0.1, #-0.1,   # The reward received at each lane change action.
             "reward_speed_range": [20, 30],
-            "time_to_collision_reward": -10,
+            "time_to_collision_reward": 0,
             "normalize_reward": True,
             "offroad_terminal": False
         })
