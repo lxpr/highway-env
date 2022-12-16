@@ -51,10 +51,7 @@ def finite_mdp_modified(env: 'AbstractEnv',
     lanes = np.arange(l) / max(l - 1, 1)
     speeds = np.arange(v) / max(v - 1, 1)
 
-    current_speed = env.vehicle.speed
-    scaled_speeds = np.array([utils.lmap_with_limit(current_speed - env.vehicle.DELTA_SPEED, env.config["reward_speed_range"], [0, 1]),
-                     utils.lmap_with_limit(current_speed, env.config["reward_speed_range"], [0, 1]),
-                     utils.lmap_with_limit(current_speed + env.vehicle.DELTA_SPEED, env.config["reward_speed_range"], [0, 1])])
+    scaled_speeds = np.array([utils.lmap_with_limit(speed, env.config["reward_speed_range"], [0, 1]) for speed in env.vehicle.target_speeds])
 
     # state_reward = \
     #     + env.config["collision_reward"] * grid \
@@ -67,7 +64,7 @@ def finite_mdp_modified(env: 'AbstractEnv',
         + env.config["high_speed_reward"] * np.tile(scaled_speeds[:, np.newaxis, np.newaxis], (1, l, t))
 
 
-    # state_reward += env.config["time_to_collision_reward"] * np.exp(-grid_ttc)
+    state_reward += env.config["time_to_collision_reward"] * np.exp(-grid_ttc)
     state_reward = np.ravel(state_reward)
     action_reward = [env.config["lane_change_reward"], 0, env.config["lane_change_reward"], 0, 0]
     reward = np.fromfunction(np.vectorize(lambda s, a: state_reward[s] + action_reward[a]),
@@ -76,7 +73,7 @@ def finite_mdp_modified(env: 'AbstractEnv',
     # print("reward:", reward)
 
     # Compute terminal states
-    collision = grid == 1
+    collision = grid > 0
     end_of_horizon = np.fromfunction(lambda h, i, j: j == grid.shape[2] - 1, grid.shape, dtype=int)
     terminal = np.ravel(collision | end_of_horizon)
 
@@ -105,6 +102,7 @@ def compute_ttc_grid_modified(env: 'AbstractEnv',
     :return: the time-co-collision grid, with axes SPEED x LANES x TIME
     """
 
+    extra_margin = 0
     vehicle = vehicle or env.vehicle
     road_lanes = env.road.network.all_side_lanes(env.vehicle.lane_index)
     grid = np.zeros((vehicle.target_speeds.size, len(road_lanes), int(horizon / time_quantization)))
@@ -117,8 +115,8 @@ def compute_ttc_grid_modified(env: 'AbstractEnv',
             for m, cost in collision_points:
                 distance = vehicle.lane_distance_to(obstacle) + m
                 time_to_collision = distance / utils.not_zero(ego_speed)
-                if abs(distance) < margin:
-                    time_to_collision = 1
+                # if abs(distance) < margin:
+                #     time_to_collision = 2
                 if time_to_collision < 0:
                     continue
                 if env.road.network.is_connected_road(vehicle.lane_index, obstacle.lane_index,
@@ -141,7 +139,7 @@ def compute_ttc_grid_modified(env: 'AbstractEnv',
                             # TODO: check lane overflow (e.g. vehicle with higher lane id than current road capacity)
                             grid[speed_index, lane, time] = np.maximum(grid[speed_index, lane, time], cost)
 
-                    for time in range(0, int(time_to_collision / time_quantization)):
+                    for time in range(0, int(time_to_collision / time_quantization) + 1):
                         if 0 <= time < grid_ttc.shape[2]:
                             # TODO: check lane overflow (e.g. vehicle with higher lane id than current road capacity)
                             grid_ttc[speed_index, lane, time] = np.minimum(grid_ttc[speed_index, lane, time],
@@ -155,7 +153,7 @@ def compute_ttc_grid_modified(env: 'AbstractEnv',
                 distance = vehicle.lane_distance_to(other) + m
                 other_projected_speed = other.speed * np.dot(other.direction, vehicle.direction)
                 time_to_collision = distance / utils.not_zero(ego_speed - other_projected_speed)
-                if abs(distance) < margin:
+                if abs(distance) < margin + extra_margin:
                     time_to_collision = 1
                 if time_to_collision < 0:
                     continue
@@ -169,18 +167,33 @@ def compute_ttc_grid_modified(env: 'AbstractEnv',
                     # else:
                     #     lane = range(grid.shape[1])
                     # Different road of different number of lanes: uncertainty on future lane
-                    elif len(env.road.network.all_side_lanes(other.lane_index)) > 2 * len(
-                            env.road.network.all_side_lanes(vehicle.lane_index)):
-                        lane = [max(min(other.lane_index[2] - len(env.road.network.all_side_lanes(other.lane_index)) + len(
-                            env.road.network.all_side_lanes(vehicle.lane_index)), grid.shape[1] - 1), 0)]
-                    elif len(env.road.network.all_side_lanes(other.lane_index)) > len(
-                            env.road.network.all_side_lanes(vehicle.lane_index)):
-                        lane = [min(other.lane_index[2], grid.shape[1] - 1)]
-                    elif len(env.road.network.all_side_lanes(vehicle.lane_index)) > 2 * len(env.road.network.all_side_lanes(other.lane_index)):
-                        lane = [min(other.lane_index[2] - len(env.road.network.all_side_lanes(other.lane_index)) + len(
-                            env.road.network.all_side_lanes(vehicle.lane_index)), grid.shape[1] - 1)]
+                    # This part for ramp env
+                    # elif len(env.road.network.all_side_lanes(other.lane_index)) > 2 * len(
+                    #         env.road.network.all_side_lanes(vehicle.lane_index)):
+                    #     lane = [max(min(other.lane_index[2] - len(env.road.network.all_side_lanes(other.lane_index)) + len(
+                    #         env.road.network.all_side_lanes(vehicle.lane_index)), grid.shape[1] - 1), 0)]
+                    # elif len(env.road.network.all_side_lanes(other.lane_index)) > len(
+                    #         env.road.network.all_side_lanes(vehicle.lane_index)):
+                    #     lane = [min(other.lane_index[2], grid.shape[1] - 1)]
+                    # elif len(env.road.network.all_side_lanes(vehicle.lane_index)) > 2 * len(env.road.network.all_side_lanes(other.lane_index)):
+                    #     lane = [min(other.lane_index[2] - len(env.road.network.all_side_lanes(other.lane_index)) + len(
+                    #         env.road.network.all_side_lanes(vehicle.lane_index)), grid.shape[1] - 1)]
+                    # else:
+                    #     lane = [min(other.lane_index[2], grid.shape[1] - 1)]
+                    # This part for merge inv
+                    elif len(env.road.network.all_side_lanes(other.lane_index)) > 2 * len(env.road.network.all_side_lanes(vehicle.lane_index)):
+                        if other.lane_index[2] < len(env.road.network.all_side_lanes(other.lane_index)) - grid.shape[1]:
+                            break
+                        else:
+                            lane = other.lane_index[2] - len(env.road.network.all_side_lanes(other.lane_index)) + grid.shape[1]
+                    elif len(env.road.network.all_side_lanes(other.lane_index)) > 1.5 * len(env.road.network.all_side_lanes(vehicle.lane_index)):
+                        break
+                    elif len(env.road.network.all_side_lanes(other.lane_index)) > len(env.road.network.all_side_lanes(vehicle.lane_index)):
+                        lane = min(grid.shape[1] - 1, other.lane_index[2])
+                    elif len(env.road.network.all_side_lanes(other.lane_index)) > 0.5 * len(env.road.network.all_side_lanes(vehicle.lane_index)):
+                        lane = lane = other.lane_index[2]
                     else:
-                        lane = [min(other.lane_index[2], grid.shape[1] - 1)]
+                        break
 
                     # Quantize time-to-collision to both upper and lower values
                     for time in [int(time_to_collision / time_quantization) - 1,

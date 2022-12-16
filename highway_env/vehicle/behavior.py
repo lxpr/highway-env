@@ -1343,7 +1343,7 @@ class MDPIDMVehicle(ControlledVehicle):
     """Minimum starting speed."""
 
     """A controlled vehicle with a specified discrete range of allowed target speeds."""
-    DEFAULT_TARGET_SPEEDS = np.linspace(0, 30, 3)
+    DEFAULT_TARGET_SPEEDS = np.linspace(0, 30, 11)
 
     def __init__(self,
                  road: Road,

@@ -29,6 +29,7 @@ class ControlledVehicle(Vehicle):
     KP_LATERAL = 1 / TAU_LATERAL  # [1/s]
     MAX_STEERING_ANGLE = np.pi / 3  # [rad]
     DELTA_SPEED = 3  # [m/s]
+    STEERING_MIN_SPEED = 0.2
 
     def __init__(self,
                  road: Road,
@@ -97,6 +98,8 @@ class ControlledVehicle(Vehicle):
         action = {"steering": self.steering_control(self.target_lane_index),
                   "acceleration": self.speed_control(self.target_speed)}
         action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
+        if abs(action['steering']) > 0 and self.target_speed < self.STEERING_MIN_SPEED:
+            self.target_speed = self.STEERING_MIN_SPEED
         super().act(action)
 
     def follow_road(self) -> None:
@@ -190,7 +193,7 @@ class ControlledVehicle(Vehicle):
 class MDPVehicle(ControlledVehicle):
 
     """A controlled vehicle with a specified discrete range of allowed target speeds."""
-    DEFAULT_TARGET_SPEEDS = np.linspace(0, 30, 3)
+    DEFAULT_TARGET_SPEEDS = np.linspace(0, 30, 11)
 
     def __init__(self,
                  road: Road,

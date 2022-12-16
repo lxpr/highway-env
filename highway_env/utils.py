@@ -26,8 +26,8 @@ def lmap(v: float, x: Interval, y: Interval) -> float:
     return y[0] + (v - x[0]) * (y[1] - y[0]) / (x[1] - x[0])
 
 def lmap_with_limit(v: float, x: Interval, y: Interval) -> float:
-    """Linear map of value v with range x to desired range y. If v is above the upper bound of x, regard it as the upper bound"""
-    return y[0] + (min(v, x[1]) - x[0]) * (y[1] - y[0]) / (x[1] - x[0])
+    """Linear map of value v with range x to desired range y. If v is above the upper bound of x, regard it as the upper bound, lower bound similarly"""
+    return y[0] + (min(max(v, x[0]), x[1]) - x[0]) * (y[1] - y[0]) / (x[1] - x[0])
 
 
 def get_class_path(cls: Callable) -> str:
