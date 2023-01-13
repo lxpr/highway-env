@@ -70,7 +70,7 @@ class EnvViewer(object):
         Set the sequence of actions chosen by the agent, so that it can be displayed
         :param actions: list of action, following the env's action space specification
         """
-        if isinstance(self.env.action_type, DiscreteMetaAction):
+        if isinstance(self.env.action_type, DiscreteMetaAction) and actions[0] != "IDM":
             actions = [self.env.action_type.actions[a] for a in actions]
         if len(actions) > 1:
             self.vehicle_trajectory = self.env.vehicle.predict_trajectory(actions,

@@ -28,12 +28,12 @@ class MergeEnv(AbstractEnv):
         cfg.update({
             "duration": 40,  # [s]
             "collision_reward": -1,
-            "right_lane_reward": 0.1,
-            "high_speed_reward": 0.3,
+            "right_lane_reward": 0.05, #0.1,
+            "high_speed_reward": 0.4, #0.3,
             "merging_speed_reward": 0, #-0.5,
             "lane_change_reward": -0.05,
             "reward_speed_range": [0, 30],
-            "time_to_collision_reward": -0.5,  # -1,
+            "time_to_collision_reward": -1,  # -1,
         })
         return cfg
 
@@ -54,6 +54,10 @@ class MergeEnv(AbstractEnv):
         #                   [self.config["collision_reward"] + self.config["merging_speed_reward"],
         #                    self.config["high_speed_reward"] + self.config["right_lane_reward"]],
         #                   [0, 1])
+        reward = utils.lmap(reward,
+                          [self.config["collision_reward"] + self.config["time_to_collision_reward"] + self.config["lane_change_reward"],
+                           self.config["high_speed_reward"] + self.config["right_lane_reward"]],
+                          [0, 1])
         return reward
 
     def _rewards(self, action: int) -> Dict[Text, float]:

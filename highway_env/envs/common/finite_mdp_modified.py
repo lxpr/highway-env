@@ -69,6 +69,12 @@ def finite_mdp_modified(env: 'AbstractEnv',
     action_reward = [env.config["lane_change_reward"], 0, env.config["lane_change_reward"], 0, 0]
     reward = np.fromfunction(np.vectorize(lambda s, a: state_reward[s] + action_reward[a]),
                              (np.size(state_reward), np.size(action_reward)), dtype=int)
+
+    reward = utils.lmap(reward,
+                        [env.config["collision_reward"] + env.config["time_to_collision_reward"] + env.config[
+                            "lane_change_reward"],
+                         env.config["high_speed_reward"] + env.config["right_lane_reward"]],
+                        [0, 1])
     # print(env.config["collision_reward"], env.config["right_lane_reward"], env.config["high_speed_reward"])
     # print("reward:", reward)
 
@@ -148,7 +154,8 @@ def compute_ttc_grid_modified(env: 'AbstractEnv',
             if (other is vehicle) or (ego_speed == other.speed):
                 continue
             margin = other.LENGTH / 2 + vehicle.LENGTH / 2
-            collision_points = [(0, 1), (-margin, 0.5), (margin, 0.5)]
+            # collision_points = [(0, 1), (-margin, 0.5), (margin, 0.5)]
+            collision_points = [(0, 1), (-margin, 1), (margin, 1)]
             for m, cost in collision_points:
                 distance = vehicle.lane_distance_to(other) + m
                 other_projected_speed = other.speed * np.dot(other.direction, vehicle.direction)
