@@ -232,8 +232,8 @@ def transition_model(h: int, i: int, j: int, a: int, grid: np.ndarray) -> np.nda
     right = a == 2
     faster = (a == 3) & (j == 0)
     slower = (a == 4) & (j == 0)
-    next_state[left] = clip_position(h[left], i[left] - 1, j[left] + 1, grid)
-    next_state[right] = clip_position(h[right], i[right] + 1, j[right] + 1, grid)
+    next_state[left] = clip_position(max(h[left], 1), i[left] - 1, j[left] + 1, grid)
+    next_state[right] = clip_position(max(h[right], 1), i[right] + 1, j[right] + 1, grid)
     next_state[faster] = clip_position(h[faster] + 1, i[faster], j[faster] + 1, grid)
     next_state[slower] = clip_position(h[slower] - 1, i[slower], j[slower] + 1, grid)
     return next_state

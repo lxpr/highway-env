@@ -1,9 +1,12 @@
-from itertools import product
-from typing import TYPE_CHECKING, Optional, Union, Tuple, Callable
+import functools
+import itertools
+from typing import TYPE_CHECKING, Optional, Union, Tuple, Callable, List
 from gym import spaces
 import numpy as np
 
 from highway_env import utils
+from highway_env.utils import Vector
+from highway_env.vehicle.behavior import IDMVehicle
 from highway_env.vehicle.dynamics import BicycleVehicle
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.vehicle.controller import MDPVehicle
@@ -30,7 +33,6 @@ class ActionType(object):
     def vehicle_class(self) -> Callable:
         """
         The class of a vehicle able to execute the action.
-
         Must return a subclass of :py:class:`highway_env.vehicle.kinematics.Vehicle`.
         """
         raise NotImplementedError
@@ -38,19 +40,22 @@ class ActionType(object):
     def act(self, action: Action) -> None:
         """
         Execute the action on the ego-vehicle.
-
         Most of the action mechanics are actually implemented in vehicle.act(action), where
         vehicle is an instance of the specified :py:class:`highway_env.envs.common.action.ActionType.vehicle_class`.
         Must some pre-processing can be applied to the action based on the ActionType configurations.
-
         :param action: the action to execute
+        """
+        raise NotImplementedError
+
+    def get_available_actions(self):
+        """
+        For discrete action space, return the list of available actions.
         """
         raise NotImplementedError
 
     @property
     def controlled_vehicle(self):
         """The vehicle acted upon.
-
         If not set, the first controlled vehicle is used by default."""
         return self.__controlled_vehicle or self.env.vehicle
 
@@ -63,9 +68,7 @@ class ContinuousAction(ActionType):
 
     """
     An continuous action space for throttle and/or steering angle.
-
     If both throttle and steering are enabled, they are set in this order: [throttle, steering]
-
     The space intervals are always [-1, 1], but are mapped to throttle/steering intervals through configurations.
     """
 
@@ -79,6 +82,7 @@ class ContinuousAction(ActionType):
                  env: 'AbstractEnv',
                  acceleration_range: Optional[Tuple[float, float]] = None,
                  steering_range: Optional[Tuple[float, float]] = None,
+                 speed_range: Optional[Tuple[float, float]] = None,
                  longitudinal: bool = True,
                  lateral: bool = True,
                  dynamical: bool = False,
@@ -86,10 +90,10 @@ class ContinuousAction(ActionType):
                  **kwargs) -> None:
         """
         Create a continuous action space.
-
         :param env: the environment
         :param acceleration_range: the range of acceleration values [m/s²]
         :param steering_range: the range of steering values [rad]
+        :param speed_range: the range of reachable speeds [m/s]
         :param longitudinal: enable throttle control
         :param lateral: enable steering control
         :param dynamical: whether to simulate dynamics (i.e. friction) rather than kinematics
@@ -98,6 +102,7 @@ class ContinuousAction(ActionType):
         super().__init__(env)
         self.acceleration_range = acceleration_range if acceleration_range else self.ACCELERATION_RANGE
         self.steering_range = steering_range if steering_range else self.STEERING_RANGE
+        self.speed_range = speed_range
         self.lateral = lateral
         self.longitudinal = longitudinal
         if not self.lateral and not self.longitudinal:
@@ -117,6 +122,8 @@ class ContinuousAction(ActionType):
     def act(self, action: np.ndarray) -> None:
         if self.clip:
             action = np.clip(action, -1, 1)
+        if self.speed_range:
+            self.controlled_vehicle.MIN_SPEED, self.controlled_vehicle.MAX_SPEED = self.speed_range
         if self.longitudinal and self.lateral:
             self.controlled_vehicle.act({
                 "acceleration": utils.lmap(action[0], [-1, 1], self.acceleration_range),
@@ -155,8 +162,8 @@ class DiscreteAction(ContinuousAction):
 
     def act(self, action: int) -> None:
         cont_space = super().space()
-        axes = np.linspace(cont_space.low, cont_space.high, self.actions_per_axis)
-        all_actions = list(product(axes))
+        axes = np.linspace(cont_space.low, cont_space.high, self.actions_per_axis).T
+        all_actions = list(itertools.product(*axes))
         super().act(all_actions[action])
 
 
@@ -193,17 +200,19 @@ class DiscreteMetaAction(ActionType):
                  env: 'AbstractEnv',
                  longitudinal: bool = True,
                  lateral: bool = True,
+                 target_speeds: Optional[Vector] = None,
                  **kwargs) -> None:
         """
         Create a discrete action space of meta-actions.
-
         :param env: the environment
         :param longitudinal: include longitudinal actions
         :param lateral: include lateral actions
+        :param target_speeds: the list of speeds the vehicle is able to track
         """
         super().__init__(env)
         self.longitudinal = longitudinal
         self.lateral = lateral
+        self.target_speeds = np.array(target_speeds) if target_speeds is not None else MDPVehicle.DEFAULT_TARGET_SPEEDS
         self.actions = self.ACTIONS_ALL if longitudinal and lateral \
             else self.ACTIONS_LONGI if longitudinal \
             else self.ACTIONS_LAT if lateral \
@@ -217,15 +226,34 @@ class DiscreteMetaAction(ActionType):
 
     @property
     def vehicle_class(self) -> Callable:
-        return MDPVehicle
+        return functools.partial(MDPVehicle, target_speeds=self.target_speeds)
 
     def act(self, action: int) -> None:
-        if action == "IDM":
-            self.controlled_vehicle.IDM_flag = True
-            self.controlled_vehicle.act("IDM")
-        else:
-            self.controlled_vehicle.IDM_flag = False
-            self.controlled_vehicle.act(self.actions[action])
+        self.controlled_vehicle.act(self.actions[action])
+
+    def get_available_actions(self) -> List[int]:
+        """
+        Get the list of currently available actions.
+        Lane changes are not available on the boundary of the road, and speed changes are not available at
+        maximal or minimal speed.
+        :return: the list of available actions
+        """
+        actions = [self.actions_indexes['IDLE']]
+        network = self.controlled_vehicle.road.network
+        for l_index in network.side_lanes(self.controlled_vehicle.lane_index):
+            if l_index[2] < self.controlled_vehicle.lane_index[2] \
+                    and network.get_lane(l_index).is_reachable_from(self.controlled_vehicle.position) \
+                    and self.lateral:
+                actions.append(self.actions_indexes['LANE_LEFT'])
+            if l_index[2] > self.controlled_vehicle.lane_index[2] \
+                    and network.get_lane(l_index).is_reachable_from(self.controlled_vehicle.position) \
+                    and self.lateral:
+                actions.append(self.actions_indexes['LANE_RIGHT'])
+        if self.controlled_vehicle.speed_index < self.controlled_vehicle.target_speeds.size - 1 and self.longitudinal:
+            actions.append(self.actions_indexes['FASTER'])
+        if self.controlled_vehicle.speed_index > 0 and self.longitudinal:
+            actions.append(self.actions_indexes['SLOWER'])
+        return actions
 
 
 class MultiAgentAction(ActionType):
@@ -252,6 +280,9 @@ class MultiAgentAction(ActionType):
         assert isinstance(action, tuple)
         for agent_action, action_type in zip(action, self.agents_action_types):
             action_type.act(agent_action)
+
+    def get_available_actions(self):
+        return itertools.product(*[action_type.get_available_actions() for action_type in self.agents_action_types])
 
 
 def action_factory(env: 'AbstractEnv', config: dict) -> ActionType:
